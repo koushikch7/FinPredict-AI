@@ -4,5 +4,16 @@ dist/
 coverage/
 .DS_Store
 *.log
+
+# Secrets and runtime state — never commit
 .env*
 !.env.example
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp

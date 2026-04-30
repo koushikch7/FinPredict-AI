@@ -1,0 +1,33 @@
+services:
+  finpredict:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: finpredict-ai:latest
+    container_name: finpredict
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-3004}:3000"
+    env_file:
+      - .env
+    environment:
+      # Inside the container the server always listens on 3000 (Dockerfile EXPOSE).
+      # External port is controlled by HOST_PORT in .env or defaults to 3004.
+      PORT: "3000"
+      DB_PATH: "/app/data/finance.db"
+      # Single-region (Indian markets) deployment: align the container clock,
+      # cron schedules, server logs and any naked Date.now() calls to IST so
+      # everything the operator sees lines up with NSE timestamps.
+      TZ: "Asia/Kolkata"
+    volumes:
+      - finpredict-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  finpredict-data:
+    driver: local

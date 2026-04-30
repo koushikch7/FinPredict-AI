@@ -1,0 +1,25 @@
+{
+  "name": "FinPredict-AI — AI Investment Manager",
+  "short_name": "FinPredict",
+  "description": "AI-powered stock investment manager for Indian markets — predictions, paper-trading, multi-broker support.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0F172A",
+  "theme_color": "#0F172A",
+  "lang": "en-IN",
+  "categories": ["finance", "productivity", "business"],
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" },
+    { "src": "/apple-touch-icon.png", "type": "image/png", "sizes": "180x180", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Playground", "short_name": "Playground", "url": "/playground", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Predictions", "short_name": "Predictions", "url": "/predictions", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Portfolio", "short_name": "Portfolio", "url": "/portfolio", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

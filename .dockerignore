@@ -1,0 +1,13 @@
+node_modules
+dist
+data
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+tests
+test-db.ts
+.vscode
+README.md
