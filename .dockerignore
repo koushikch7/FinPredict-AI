@@ -7,7 +7,4 @@ data
 .env.*
 !.env.example
 *.log
-tests
-test-db.ts
 .vscode
-README.md

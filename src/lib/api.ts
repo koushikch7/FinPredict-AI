@@ -42,6 +42,8 @@ export const api = {
     register: (data: { username: string; password: string; role?: string }) => request('/auth/register', json(data)),
     me: () => request('/auth/me'),
     logout: () => request('/auth/logout', { method: 'POST' }),
+    changePassword: (data: { current_password: string; new_password: string }) =>
+      request('/auth/change-password', json(data)),
   },
 
   stocks: {
@@ -50,6 +52,7 @@ export const api = {
     quote: (symbol: string) => request(`/stocks/${symbol}/quote`),
     history: (symbol: string, days = 90) => request(`/stocks/${symbol}/history?days=${days}`),
     technicals: (symbol: string) => request(`/stocks/${symbol}/technicals`),
+    marketStatus: () => request('/stocks/market-status'),
   },
 
   portfolio: {
@@ -132,9 +135,21 @@ export const api = {
     aiModels: () => request('/admin/ai/models'),
     users: () => request('/admin/users'),
     createUser: (data: any) => request('/admin/users', json(data)),
+    deleteUser: (id: number) => request(`/admin/users/${id}`, { method: 'DELETE' }),
     syncLogs: () => request('/admin/sync/logs'),
     myAI: () => request('/admin/me/ai'),
     saveMyAI: (data: any) => request('/admin/me/ai', json(data)),
     testMyAI: () => request('/admin/me/ai/test', { method: 'POST' }),
+  },
+
+  backup: {
+    status:  () => request('/admin/backups/status'),
+    list:    () => request('/admin/backups/list'),
+    storage: () => request('/admin/backups/storage'),
+    create:  (type: 'daily' | 'weekly' | 'manual') =>
+      request('/admin/backups/create', json({ type })),
+    restore: (key: string) => request('/admin/backups/restore', json({ key })),
+    delete:  (key: string) => request('/admin/backups/delete', json({ key })),
+    cleanup: () => request('/admin/backups/cleanup', json({})),
   },
 };

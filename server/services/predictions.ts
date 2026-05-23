@@ -1,8 +1,9 @@
 import { db } from '../db/index.js';
 import { resolveAIConfig, aiComplete } from './ai.js';
 import { fetchYahooHistory, fetchYahooQuote } from './prices.js';
-import { computeTechnicals } from './technicals.js';
+import { computeTechnicals, computeEnhancedTechnicals } from './technicals.js';
 import { fetchMarketNews } from './news.js';
+import { getSymbolSentiment, getMarketSentiment } from './sentiment.js';
 import { logger } from '../logger.js';
 
 export type Strategy = 'Buffett' | 'Lynch' | 'Graham' | 'Momentum' | 'MeanReversion' | 'Balanced';
@@ -41,7 +42,7 @@ export interface PredictionResult {
 }
 
 /**
- * Build the rich market context: price history, technicals, latest quote, recent news.
+ * Build the rich market context: price history, technicals, latest quote, recent news, sentiment.
  * This is what the AI sees - quality of this dataset determines prediction quality.
  */
 export async function buildContext(symbol: string, exchange = 'NSE') {
@@ -51,10 +52,17 @@ export async function buildContext(symbol: string, exchange = 'NSE') {
     fetchMarketNews([symbol]),
   ]);
   const closes = history.map((h) => h.close);
+  const highs = history.map((h) => h.high ?? h.close);
+  const lows = history.map((h) => h.low ?? h.close);
+  const volumes = history.map((h) => h.volume ?? 0);
   const tech = computeTechnicals(closes);
+  const enhanced = computeEnhancedTechnicals(closes, highs, lows, volumes);
+  const sentiment = getSymbolSentiment(symbol, 7);
   return {
     quote,
     technicals: tech,
+    enhanced,
+    sentiment,
     recent_candles: history.slice(-30),
     news: news.slice(0, 10).map((n) => ({ headline: n.headline, source: n.source, at: n.publishedAt })),
   };
@@ -140,7 +148,13 @@ Analyse this evidence and produce the JSON response. Be calibrated: confidence s
       parsed.explanation,
       strategy,
       `${aiCfg.provider}/${aiCfg.model}`,
-      JSON.stringify({ price: ctx.quote?.price, technicals: ctx.technicals }),
+      JSON.stringify({
+        price: ctx.quote?.price,
+        technicals: ctx.technicals,
+        technicalStrength: ctx.enhanced?.technicalStrength ?? null,
+        sentiment_score: ctx.sentiment?.avgScore ?? null,
+        sentiment_trend: ctx.sentiment?.trend ?? null,
+      }),
       validateAfter,
     );
 

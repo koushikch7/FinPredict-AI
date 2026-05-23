@@ -6,9 +6,20 @@ import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import { fetchYahooQuote, snapshotTechnicals } from '../services/prices.js';
 import { notFound } from '../utils/errors.js';
+import { isNseOpen, isMarketHoliday, isTradingDay, getUpcomingHolidays } from '../utils/market-hours.js';
 
 export const stocksRouter = Router();
 stocksRouter.use(authenticate);
+
+// Market status + holidays
+stocksRouter.get('/market-status', (_req, res) => {
+  res.json({
+    open: isNseOpen(),
+    holiday: isMarketHoliday(),
+    tradingDay: isTradingDay(),
+    upcomingHolidays: getUpcomingHolidays(5),
+  });
+});
 
 stocksRouter.get(
   '/',

@@ -30,4 +30,5 @@ services:
 
 volumes:
   finpredict-data:
-    driver: local
+    external: true
+    name: finpredict-data

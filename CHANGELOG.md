@@ -6,6 +6,182 @@ All notable changes to FinPredict-AI are recorded here. Format follows [Keep a C
 - CSV portfolio import for non-Kite brokers
 - WebSocket live ticks (Kite)
 - Code-splitting to drop main bundle below 250 kB gzip
+- Configurable tax regime & annual income in profile settings
+
+## [1.6.0] — 2026-05-23
+Major AI intelligence upgrade: integrates FinBERT NLP sentiment analysis, expands technical indicators to 30+ factors, adds calibrated conviction scoring, ensemble prediction consensus, market turbulence detection, and closed-loop prediction feedback.
+
+### AI Enhancement — Phase 1: FinBERT Sentiment Scoring
+- **FinBERT integration** via HuggingFace Inference API (`ProsusAI/finbert`) — scores news headlines as positive/neutral/negative with numeric -1 to +1 composite score.
+- Sentiment scores persisted in `news_articles.sentiment` + `sentiment_score` columns (previously dead/unused).
+- Per-symbol 7-day sentiment averages and trend detection (`improving`/`declining`/`stable`).
+- Broad market sentiment (3-day aggregate) injected into AI trading prompts.
+- Automatic scoring of new headlines on persist + 15-minute background cron for un-scored backlog.
+- New service: `server/services/sentiment.ts`
+
+### AI Enhancement — Phase 2: Enhanced Technical Indicators (Alpha158-inspired)
+- Expanded from 8 to 30+ technical indicators in `computeEnhancedTechnicals()`:
+  - **Volume**: OBV, VWAP (20-period), Volume Ratio (current/SMA20)
+  - **Momentum**: Williams %R, Stochastic %K/%D, CCI, Rate of Change (ROC-12)
+  - **Volatility**: ATR (14), Historical Volatility (20-day annualized)
+  - **Trend**: ADX/DI+/DI- (14), price position vs 52-week high/low
+- **Composite Technical Strength Score (0-100)** — weighted combination of all indicators producing a single actionable signal.
+- OHLCV data now fully utilized (previously only close prices were used for analysis).
+
+### AI Enhancement — Phase 3: Calibrated Conviction Scorer
+- **Programmatic conviction floor** — data-driven 0-1 score that BLOCKS trades where data contradicts LLM optimism.
+- Combines: technical strength, sentiment score/trend, prediction accuracy history, volume confirmation, trend alignment, market regime.
+- Finally activates the `feature_reliability` table (previously seeded but never used).
+- Weights auto-adjust based on actual prediction outcomes (Phase 6 feedback).
+- New service: `server/services/conviction.ts`
+
+### AI Enhancement — Phase 4: Ensemble Prediction (Multi-Signal Consensus)
+- LLM conviction averaged with programmatic conviction — both must agree for high-confidence trades.
+- Disagreement penalty: if LLM and programmatic scores differ by >0.3, applies -0.15 penalty.
+- Ensemble score must be ≥ 0.55 for BUY orders (prevents overconfident single-signal trades).
+- Programmatic floor of 0.40 — blocks any BUY regardless of LLM conviction.
+
+### AI Enhancement — Phase 5: Turbulence Index (Regime-Aware Position Sizing)
+- Computes market turbulence from recent vs. historical volatility across the portfolio universe.
+- Three levels:
+  - **Normal** — trade freely (multiplier 1.0×)
+  - **Elevated** — halve all new position sizes (multiplier 0.5×)
+  - **Extreme** — block ALL new buys entirely (capital preservation)
+- Inspired by FinRL's turbulence detection methodology.
+
+### AI Enhancement — Phase 6: Prediction Feedback Loop
+- Weekly auto-recalibration of `feature_reliability` weights (Sunday cron) based on last 30 days of validated predictions.
+- Tracks Technical and Sentiment signal accuracy independently.
+- Weights bounded 0.1–0.5 to prevent single-factor dominance.
+- `getPredictionAccuracy()` — rolling accuracy per symbol+strategy for conviction scoring.
+- `input_snapshot` now stores `technicalStrength`, `sentiment_score`, and `sentiment_trend` for retrospective analysis.
+
+### Added
+- `server/services/sentiment.ts` — FinBERT sentiment scoring via HuggingFace router API
+- `server/services/conviction.ts` — Calibrated conviction scorer with feature reliability weights
+- `HUGGINGFACE_API_KEY` environment variable in `.env` and config schema
+- `computeEnhancedTechnicals()` in technicals.ts — 30+ indicator suite
+- `computeTurbulence()` in paper-trading.ts — market volatility regime detection
+- FinBERT scoring cron (every 15 min) in scheduler
+- Feature weight update cron (weekly) in scheduler
+
+### Changed
+- `server/services/technicals.ts` — expanded from 100 to 300+ lines with full indicator suite
+- `server/services/predictions.ts` — `buildContext()` now returns enhanced technicals + sentiment data
+- `server/services/paper-trading.ts` — integrated conviction scorer, ensemble filter, turbulence multiplier, sentiment in prompts
+- `server/services/news.ts` — auto-triggers FinBERT scoring after headline persistence
+- `server/jobs/scheduler.ts` — added sentiment + feature weight update cron jobs
+- `server/config.ts` — added `HUGGINGFACE_API_KEY` to schema
+- `.dockerignore` — removed README.md exclusion (needed in container for docs API)
+- `Dockerfile` — added `COPY --from=builder /app/*.md ./` for documentation serving
+
+## [1.5.0] — 2026-05-23
+Complete overhaul of the AI paper-trading engine for profitability. Adds realistic Indian market charges, conviction-based filtering, trailing stop-loss, and comprehensive documentation system.
+
+### Trading Algorithm (Breaking Change — Improves P&L)
+- **Realistic Indian Market Charges** — Replaced flat 0.1% fee with actual costs:
+  - STT: 0.1% on both BUY and SELL (delivery)
+  - Brokerage: 0.03% or ₹20 cap (discount broker model)
+  - GST: 18% on brokerage + exchange charges
+  - Exchange transaction charge: 0.00345%
+  - SEBI charges: ₹10 per crore
+  - Stamp duty: 0.015% on buy side only
+- **Conviction Threshold** — Only executes BUY orders with conviction ≥ 0.70 (previously: any value accepted). SELL requires ≥ 0.50.
+- **Anti-Churn: Max 3 Buys/Cycle** — Reduced from 6-8 to prevent over-trading which was the #1 cause of losses (221 buys on ₹1L capital).
+- **Trailing Stop-Loss** — Positions that gain >5% are protected by a 4% trailing stop from peak (locks in profits instead of giving them back).
+- **Partial Take-Profit** — Sells 50% at target instead of full dump; remaining 50% rides with trailing stop for further upside.
+- **No Intraday Trading** — Removed Intraday horizon from AI execution; minimum hold is Short-term (days-weeks). Intraday trades were losing ₹146 avg.
+- **Break-Even Filter** — Rejects trades where all-in costs (charges + STCG tax) are too high relative to position size.
+- **Anti-Fixation Window** — Increased to 120 minutes (from 60) between same-stock buys.
+- **STCG Tax Awareness** — 15% short-term capital gains factored into minimum profit calculations.
+- **Improved AI Prompt** — Complete rewrite emphasizing:
+  - Quality > quantity, patience, HOLD bias when uncertain
+  - 2:1 minimum reward-to-risk ratio requirement
+  - Explicit break-even % communicated to AI
+  - Regime-specific entry criteria (RSI/SMA/volume thresholds)
+  - Must include stop-loss level and target price in every decision
+  - Learns from past strategy P&L (avoids losing strategies)
+  - Returns empty decisions when no good setups exist
+- **Decisions sorted by conviction** — Highest conviction trades get priority within the per-cycle buy limit.
+- **Realized P&L calculation improved** — Now includes buy-side charges in the P&L calculation for accuracy.
+
+### Pre-Fix Performance Analysis
+| Metric | Before | Target After |
+|--------|--------|-------------|
+| Win Rate | 39.6% (46/116) | >55% |
+| Avg Win / Avg Loss | ₹62 / ₹114 (0.54:1) | >1.5:1 |
+| Total Fees Drag | ₹2,351 (2.35% of capital) | <₹500 (<0.5%) |
+| Stop-Loss Avg | -₹713 | -₹200 |
+| Total Buys | 221 (excessive churn) | ~50-70 |
+| Intraday Trade Avg P&L | -₹146 | N/A (disabled) |
+
+### Documentation
+- **User Guide** (`USER_GUIDE.md`) — Complete feature walkthrough covering all 9 sections with both user-friendly and technical explanations.
+- **Documentation Page** — Rewritten `/docs` page with 4-tab navigation (User Guide, Requirements, README, Changelog) that renders markdown from source files.
+- **Footer** — Desktop footer with version info and direct links to each documentation tab.
+- All documentation sources are markdown files at workspace root (single source of truth):
+  - `README.md` — Project overview, architecture, deployment
+  - `REQUIREMENTS.md` — Functional & non-functional requirements
+  - `CHANGELOG.md` — Version history
+  - `USER_GUIDE.md` — User-facing feature guide
+
+### Added
+- `USER_GUIDE.md` — new documentation file at workspace root
+- `GET /api/docs/:name` — API endpoint to serve documentation markdown files
+- Footer component in AppShell with documentation links
+- `prose-doc` CSS class for documentation typography
+- `calculateCharges()` function — computes realistic per-trade Indian market costs
+- `minimumBreakevenPct()` function — calculates minimum profitable price move
+
+### Changed
+- `server/services/paper-trading.ts` — complete trading logic overhaul (see Trading Algorithm above)
+- `src/pages/Docs.tsx` — rewritten as 4-tab layout fetching from `/api/docs/` endpoint
+- `src/components/AppShell.tsx` — added desktop footer with doc links
+- `src/index.css` — added `prose-doc` typographic styles for documentation
+- `package.json` — version bumped to 1.5.0
+
+### Fixed
+- Paper trading running at a loss due to over-trading (churning), low conviction entries, and unrealistic fee model
+- Intraday trades consistently losing money (now blocked)
+- Take-profit dumping entire position at target (now sells 50%, trails rest)
+- Stop-loss triggering massive losses because no trailing mechanism existed
+
+## [1.3.2] — 2026-05-01
+Second round of bug fixes from end-to-end code audit: security hardening, UX unblocking, and stability improvements.
+
+### Security
+- **CORS any-origin with credentials** (OWASP A05:2021) — The CORS handler reflected every origin back as allowed while `credentials: true` was set, enabling cross-site request forgery from any domain. Origin is now validated against an explicit allowlist (`APP_URL` + localhost variants). Unauthorized origins receive a CORS error.
+- **NewsAPI key in URL** (OWASP A02:2021) — API key was appended to the request URL query string, exposing it in server access logs, reverse-proxy logs, and browser history. Moved to the `X-Api-Key` request header.
+
+### Fixed
+- **Playground blocked for new users** — `requireBroker()` gate was applied to all playground routes (reset, manual trade, run-ai, settings), throwing `403 Forbidden` for any user without a real broker connection. Paper trading is a virtual simulation; broker integration is only relevant for the Portfolio sync feature. Gate removed from all playground routes.
+- **No change-password endpoint** — Users had no way to change their own login password (only admins could reset via DB). Added `POST /api/auth/change-password` (requires current password, bcrypt-verified). Settings page now includes a Change Password card.
+- **No delete-user admin endpoint** — Admin panel could create users but not delete them. Added `DELETE /api/admin/users/:id` with guards: cannot self-delete, non-Super-Admin cannot delete a Super Admin.
+- **Service worker cache never invalidates** — `const VERSION = self.__FINPREDICT_VERSION__ || 'v1'` always resolved to `'v1'` because the placeholder was never replaced at build time. Added a Vite `writeBundle` plugin that patches `dist/sw.js` with a build-timestamp version (e.g. `v1746100000000`) after every `npm run build`, ensuring stale shells are evicted on deploy.
+- **Equity curve table over-sampling** — `recomputeEquity()` inserted a new row into `paper_equity_curve` every 5 minutes even for accounts with zero open positions, inflating the table with identical cash-only rows. Added a 60-minute throttle when no positions are held.
+
+### Added
+- `DELETE /api/admin/users/:id` — admin endpoint to remove a user account (cascades to all user data via FK).
+- `POST /api/auth/change-password` — self-service password change for any authenticated user.
+- Change Password card on Settings page (`/settings`).
+- Vite `swVersionPlugin` in `vite.config.ts` — injects build timestamp into service worker for reliable cache busting.
+
+## [1.3.1] — 2026-05-01
+Critical bug fixes + stability improvements from comprehensive code analysis.
+
+### Fixed
+- **CRITICAL**: Stock seeding failure — added `tier` column to `stocks` table schema (was missing, causing 150/166 stocks to fail insertion). All 166 stocks now seed correctly.
+- **CRITICAL**: No global unhandled promise rejection handler — added `process.on('unhandledRejection')` and `process.on('uncaughtException')` to prevent server crashes from async errors in cron jobs or AI calls.
+- **HIGH**: Missing React ErrorBoundary — wrapped App in `<ErrorBoundary>` to catch component errors and show recovery UI instead of blank white screen.
+- **HIGH**: Potential paper-trading race condition — added `traderRunning` in-flight guard to prevent AI trader cron from double-executing trades when a cycle runs longer than the interval.
+- **MEDIUM**: Database healthcheck missing — `/api/health` now tests `SELECT 1` against SQLite and returns `db: 'ok'` or 503 error.
+- **MEDIUM**: Missing `stock_prices.timestamp` index — added standalone timestamp index for faster cross-stock historical queries.
+
+### Security
+- User `chk` password reset reminder (local DB only, not in git) — change via Settings page.
+
+### Documentation
+- Added `BUG_ANALYSIS.md` — comprehensive 12-issue audit report with severity ratings, root causes, fixes, and action plan.
 
 ## [1.3.0] — 2026-04-30
 Mobile + PWA pass. The app is now installable on Android, iOS, Windows and macOS, ships with a hand-crafted finance/AI logo + favicon set, and has been audited for small-screen ergonomics. Also adopts Arbiter v1.12+ routing hints.

@@ -24,6 +24,7 @@ export function runMigrations(): void {
       sector TEXT,
       exchange TEXT DEFAULT 'NSE',
       instrument_token TEXT,
+      tier TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_stocks_symbol ON stocks(symbol);
@@ -42,6 +43,7 @@ export function runMigrations(): void {
       FOREIGN KEY(stock_id) REFERENCES stocks(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_prices_stock_ts ON stock_prices(stock_id, timestamp DESC);
+    CREATE INDEX IF NOT EXISTS idx_prices_timestamp ON stock_prices(timestamp DESC);
 
     CREATE TABLE IF NOT EXISTS portfolio (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

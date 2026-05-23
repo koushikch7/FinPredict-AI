@@ -19,7 +19,7 @@ import {
 } from '../services/paper-trading.js';
 import { fetchYahooQuote } from '../services/prices.js';
 import { brokerStore } from '../services/brokers/types.js';
-import { badRequest, forbidden } from '../utils/errors.js';
+import { badRequest } from '../utils/errors.js';
 import { isNseOpen } from '../utils/market-hours.js';
 import { config } from '../config.js';
 import { resolveAIConfig } from '../services/ai.js';
@@ -27,13 +27,6 @@ import { topBuyPicks } from '../services/discovery.js';
 
 export const playgroundRouter = Router();
 playgroundRouter.use(authenticate);
-
-/** Require at least one connected broker before playground use, per requirement. */
-function requireBroker(userId: number) {
-  if (!brokerStore.hasAnyEnabled(userId)) {
-    throw forbidden('Connect at least one broker (Kite, Groww, Paytm Money, IND Stocks) to use the Playground.');
-  }
-}
 
 playgroundRouter.get(
   '/',
@@ -140,7 +133,6 @@ playgroundRouter.post(
   '/reset',
   validate(ResetSchema),
   asyncHandler(async (req, res) => {
-    requireBroker(req.user!.id);
     const acc = resetAccount(req.user!.id, (req.body as any).starting_capital);
     res.json({ account: acc });
   }),
@@ -160,7 +152,6 @@ playgroundRouter.post(
   '/settings',
   validate(SettingsSchema),
   asyncHandler(async (req, res) => {
-    if ((req.body as any).auto_trade === true) requireBroker(req.user!.id);
     updateAccountSettings(req.user!.id, req.body as any);
     res.json({ ok: true });
   }),
@@ -178,7 +169,6 @@ playgroundRouter.post(
   '/trade',
   validate(TradeSchema),
   asyncHandler(async (req, res) => {
-    requireBroker(req.user!.id);
     const { symbol, side, quantity, horizon, reason, strategy_tag } = req.body as z.infer<typeof TradeSchema>;
     const stock = db.prepare('SELECT * FROM stocks WHERE symbol = ?').get(symbol.toUpperCase()) as any;
     if (!stock) throw badRequest('Unknown symbol');
@@ -231,7 +221,6 @@ playgroundRouter.get(
 playgroundRouter.post(
   '/run-ai',
   asyncHandler(async (req, res) => {
-    requireBroker(req.user!.id);
     // Manual run: bypass auto_trade gate, the user explicitly asked.
     const r = await runAITraderCycle(req.user!.id, { manual: true });
     res.json(r);

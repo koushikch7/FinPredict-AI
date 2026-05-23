@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
+import { db } from '../db/index.js';
 import { unauthorized, forbidden } from '../utils/errors.js';
 
 export interface AuthUser {
@@ -26,7 +27,12 @@ export const authenticate: RequestHandler = (req, _res, next) => {
   if (!token) return next(unauthorized());
   try {
     const decoded = jwt.verify(token, config.JWT_SECRET) as AuthUser & { iat: number; exp: number };
-    req.user = { id: decoded.id, username: decoded.username, role: decoded.role };
+    // Verify the user still exists in the DB — catches stale JWTs after DB resets or user deletion
+    const row = db
+      .prepare('SELECT id, username, role FROM users WHERE id = ?')
+      .get(decoded.id) as AuthUser | undefined;
+    if (!row) return next(unauthorized('Session no longer valid — please log in again'));
+    req.user = { id: row.id, username: row.username, role: row.role };
     next();
   } catch {
     next(unauthorized('Invalid or expired token'));

@@ -3,6 +3,7 @@ import { db } from '../db/index.js';
 import { config } from '../config.js';
 import { configStore } from './config-store.js';
 import { logger } from '../logger.js';
+import { scoreUnscoredNews } from './sentiment.js';
 
 interface NewsItem {
   headline: string;
@@ -22,10 +23,12 @@ export async function fetchMarketNews(symbols: string[] = []): Promise<NewsItem[
 
   if (apiKey) {
     try {
+      // API key sent as a header (X-Api-Key) rather than a URL query parameter
+      // so it does not appear in server access logs or browser history.
       const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(
         query,
-      )}&language=en&sortBy=publishedAt&pageSize=15&apiKey=${apiKey}`;
-      const { data } = await axios.get(url, { timeout: 10_000 });
+      )}&language=en&sortBy=publishedAt&pageSize=15`;
+      const { data } = await axios.get(url, { timeout: 10_000, headers: { 'X-Api-Key': apiKey } });
       return (data.articles ?? []).map((a: any) => ({
         headline: a.title,
         source: a.source?.name ?? 'NewsAPI',
@@ -74,6 +77,8 @@ export function persistNews(items: NewsItem[]) {
     for (const n of arr) insert.run(n.headline, n.source, n.url, n.publishedAt, n.summary ?? null);
   });
   tx(items);
+  // Fire-and-forget: score new headlines with FinBERT
+  scoreUnscoredNews(items.length + 10).catch(() => {});
 }
 
 export function recentNews(limit = 20) {

@@ -29,8 +29,10 @@ RUN npm ci --omit=dev && npm cache clean --force \
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/*.md ./
 
 RUN mkdir -p /app/data && chown -R app:app /app
+
 USER app
 
 EXPOSE 3000

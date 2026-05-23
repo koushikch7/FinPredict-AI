@@ -73,3 +73,24 @@ authRouter.post('/logout', (_req, res) => {
   res.clearCookie('token', { path: '/' });
   res.json({ success: true });
 });
+
+const ChangePwdSchema = z.object({
+  current_password: z.string().min(1),
+  new_password: z.string().min(8).max(128),
+});
+
+authRouter.post(
+  '/change-password',
+  authenticate,
+  validate(ChangePwdSchema),
+  asyncHandler(async (req, res) => {
+    const { current_password, new_password } = req.body as z.infer<typeof ChangePwdSchema>;
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user!.id) as any;
+    if (!user || !(await bcrypt.compare(current_password, user.password))) {
+      throw unauthorized('Current password is incorrect');
+    }
+    const hash = await bcrypt.hash(new_password, 12);
+    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, req.user!.id);
+    res.json({ ok: true });
+  }),
+);

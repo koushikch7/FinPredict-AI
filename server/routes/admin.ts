@@ -9,6 +9,7 @@ import { configStore, userSettings } from '../services/config-store.js';
 import { resolveAIConfig, aiHealthcheck, listAIModels, getRecentAICalls } from '../services/ai.js';
 import { getBroker } from '../services/brokers/index.js';
 import { brokerStore } from '../services/brokers/types.js';
+import { badRequest, forbidden, notFound } from '../utils/errors.js';
 
 export const adminRouter = Router();
 adminRouter.use(authenticate);
@@ -129,6 +130,23 @@ adminRouter.post(
     const hash = await bcrypt.hash(password, 12);
     const info = db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run(username, hash, role);
     res.json({ id: Number(info.lastInsertRowid) });
+  }),
+);
+
+adminRouter.delete(
+  '/users/:id',
+  authorize(['Admin', 'Super Admin']),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw badRequest('Invalid user id');
+    if (id === req.user!.id) throw badRequest('Cannot delete your own account');
+    const target = db.prepare('SELECT role FROM users WHERE id = ?').get(id) as { role: string } | undefined;
+    if (!target) throw notFound('User not found');
+    if (target.role === 'Super Admin' && req.user!.role !== 'Super Admin') {
+      throw forbidden('Only a Super Admin can delete another Super Admin');
+    }
+    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    res.json({ ok: true });
   }),
 );
 

@@ -11,7 +11,7 @@ import { badRequest, unauthorized, HttpError } from '../utils/errors.js';
  */
 function friendlyBrokerError(broker: string, err: any): Error {
   const msg = String(err?.message ?? err ?? '');
-  if (/token.?expired|TokenException|api_key.*incorrect|invalid.?token|403/i.test(msg)) {
+  if (/token.?expired|TokenException|api_key.*incorrect|incorrect.*api_key|incorrect.*access_token|invalid.?token|403/i.test(msg)) {
     return unauthorized(
       `${broker.toUpperCase()} session expired or invalid — please click "Login with ${broker}" again to refresh the access token.`,
     );

@@ -16,6 +16,7 @@ import {
   Building2,
   Shield,
   Compass,
+  HardDrive,
   Menu,
   X,
 } from 'lucide-react';
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { to: '/brokers', label: 'Brokers', icon: Zap, accent: 'text-yellow-400' },
   { to: '/settings', label: 'Settings', icon: Settings, accent: 'text-slate-300' },
   { to: '/admin', label: 'Admin', icon: Shield, accent: 'text-rose-400', roles: ['Admin', 'Super Admin'] },
+  { to: '/backups', label: 'Backups', icon: HardDrive, accent: 'text-indigo-400', roles: ['Admin', 'Super Admin'] },
   { to: '/docs', label: 'Docs', icon: BookOpen, accent: 'text-lime-400' },
 ];
 
@@ -186,6 +188,21 @@ export function AppShell() {
         <main className="flex-1 p-4 sm:p-6 md:p-10 max-w-[1400px] w-full mx-auto pb-24 md:pb-10">
           <Outlet />
         </main>
+
+        {/* Footer */}
+        <footer className="hidden md:block border-t border-slate-200 bg-slate-50/80 px-6 py-4">
+          <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-[10px] uppercase tracking-widest text-slate-400">
+              FinPredict-AI v1.5.0 &copy; {new Date().getFullYear()}
+            </div>
+            <nav className="flex items-center gap-4">
+              <NavLink to="/docs?tab=guide" className="text-[10px] uppercase tracking-widest text-slate-500 hover:text-indigo-600 transition-colors">User Guide</NavLink>
+              <NavLink to="/docs?tab=requirements" className="text-[10px] uppercase tracking-widest text-slate-500 hover:text-indigo-600 transition-colors">Requirements</NavLink>
+              <NavLink to="/docs?tab=readme" className="text-[10px] uppercase tracking-widest text-slate-500 hover:text-indigo-600 transition-colors">README</NavLink>
+              <NavLink to="/docs?tab=changelog" className="text-[10px] uppercase tracking-widest text-slate-500 hover:text-indigo-600 transition-colors">Changelog</NavLink>
+            </nav>
+          </div>
+        </footer>
 
         {/* Mobile bottom nav */}
         <nav className="mobile-bottom-nav md:hidden" aria-label="Primary">

@@ -5,12 +5,15 @@ import { logger } from '../logger.js';
 import { runAITraderCycle, recomputeEquity, getOrCreateAccount } from '../services/paper-trading.js';
 import { validatePendingPredictions } from '../services/predictions.js';
 import { fetchMarketNews, persistNews } from '../services/news.js';
+import { scoreUnscoredNews } from '../services/sentiment.js';
+import { updateFeatureWeights } from '../services/conviction.js';
 import { syncAllBrokersForUser } from '../services/portfolio-sync.js';
 import { isNseOpen } from '../utils/market-hours.js';
 import { refreshIPOs } from '../services/ipo.js';
 import { runDiscoveryScan } from '../services/discovery.js';
 
 let started = false;
+let traderRunning = false;
 
 export function startJobs() {
   if (started) return;
@@ -18,15 +21,20 @@ export function startJobs() {
 
   // Playground AI trader: every N minutes during NSE hours
   cron.schedule(config.PLAYGROUND_CRON, async () => {
-    if (!isNseOpen()) return;
-    const users = db.prepare('SELECT user_id FROM paper_accounts WHERE auto_trade = 1').all() as { user_id: number }[];
-    for (const u of users) {
-      try {
-        const r = await runAITraderCycle(u.user_id);
-        logger.info({ userId: u.user_id, executed: r.executed, errors: r.errors.length }, 'AI trader cycle');
-      } catch (e: any) {
-        logger.error({ err: e.message, userId: u.user_id }, 'AI trader cycle failed');
+    if (!isNseOpen() || traderRunning) return;
+    traderRunning = true;
+    try {
+      const users = db.prepare('SELECT user_id FROM paper_accounts WHERE auto_trade = 1').all() as { user_id: number }[];
+      for (const u of users) {
+        try {
+          const r = await runAITraderCycle(u.user_id);
+          logger.info({ userId: u.user_id, executed: r.executed, errors: r.errors.length }, 'AI trader cycle');
+        } catch (e: any) {
+          logger.error({ err: e.message, userId: u.user_id }, 'AI trader cycle failed');
+        }
       }
+    } finally {
+      traderRunning = false;
     }
   });
 
@@ -58,6 +66,25 @@ export function startJobs() {
       logger.info({ count: items.length }, 'News refreshed');
     } catch (e: any) {
       logger.warn({ err: e.message }, 'News fetch failed');
+    }
+  });
+
+  // FinBERT sentiment scoring — every 15 minutes (scores any un-scored headlines)
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      const scored = await scoreUnscoredNews(50);
+      if (scored > 0) logger.info({ scored }, 'FinBERT sentiment scoring pass');
+    } catch (e: any) {
+      logger.warn({ err: e.message }, 'Sentiment scoring job failed');
+    }
+  });
+
+  // Phase 6: Update feature reliability weights weekly (Sunday 6 AM IST)
+  cron.schedule('0 0 * * 0', () => {
+    try {
+      updateFeatureWeights();
+    } catch (e: any) {
+      logger.warn({ err: e.message }, 'Feature weight update failed');
     }
   });
 
@@ -112,4 +139,31 @@ export function startJobs() {
   }, 60_000);
 
   logger.info('Background jobs scheduled');
+
+  // ── Daily backup at 2 AM IST ─────────────────────────────────
+  cron.schedule('0 2 * * *', async () => {
+    try {
+      const { createBackup } = await import('../services/backup.js');
+      const r = await createBackup('daily');
+      logger.info({ size: r.sizeHuman }, 'Daily backup complete');
+    } catch (e: any) { logger.warn({ err: e.message }, 'Daily backup failed'); }
+  }, { timezone: 'Asia/Kolkata' });
+
+  // ── Weekly full backup — Sunday 3 AM IST ──────────────────────
+  cron.schedule('0 3 * * 0', async () => {
+    try {
+      const { createBackup } = await import('../services/backup.js');
+      const r = await createBackup('weekly');
+      logger.info({ size: r.sizeHuman }, 'Weekly backup complete');
+    } catch (e: any) { logger.warn({ err: e.message }, 'Weekly backup failed'); }
+  }, { timezone: 'Asia/Kolkata' });
+
+  // ── Cleanup expired backups — daily 4 AM IST ──────────────────
+  cron.schedule('0 4 * * *', async () => {
+    try {
+      const { cleanupOldBackups } = await import('../services/backup.js');
+      const r = await cleanupOldBackups();
+      if (r.deleted > 0) logger.info(r, 'Backup cleanup done');
+    } catch (e: any) { logger.warn({ err: e.message }, 'Backup cleanup failed'); }
+  }, { timezone: 'Asia/Kolkata' });
 }

@@ -68,8 +68,11 @@ FinPredict-AI is a complete, self-hosted investment terminal:
 ### 5. AI Predictions Engine
 - Six **strategies**: `Buffett · Lynch · Graham · Momentum · MeanReversion · Balanced`.
 - Four **horizons**: Short (2-7 d), Medium (1 m), Long (3-12 m), Multi-Year.
-- Each prediction synthesises live quote + 100 d history + technicals + recent news → strict JSON output.
+- Each prediction synthesises live quote + 180 d OHLCV history + **30+ enhanced technicals** (RSI, MACD, ADX, ATR, OBV, VWAP, Stochastic, Williams %R, CCI, ROC, Bollinger, volume ratio, 52w position) + **FinBERT sentiment scores** + recent news → strict JSON output.
+- **Technical Strength Score (0-100)** — composite weighted signal from all indicators, stored with each prediction.
+- **Sentiment context** — 7-day average FinBERT score + trend direction per symbol injected into prompt.
 - `validate_after` is set per horizon; an hourly cron labels pending predictions `ACCURATE` / `PARTIAL` / `FAILED`.
+- **Prediction feedback loop** — validated outcomes feed back into feature reliability weights (auto-recalibrated weekly).
 - KPIs: total · pending · accurate · failed · accuracy %. Sortable by date or expected move.
 
 ### 6. Auto-Trading Playground (paper)
@@ -77,9 +80,12 @@ FinPredict-AI is a complete, self-hosted investment terminal:
 - AI runs every 5 min during NSE hours (Mon-Fri 09:15-15:30 IST) **only if `auto_trade=ON` and at least one broker enabled**.
 - The cycle's universe each tick = `topBuyPicks() ∪ watchlist ∪ open holdings` so the trader sees fresh Discovery opportunities, not just a fixed list. The Playground UI shows the **effective** universe, not just the manual shortlist.
 - **Market-regime detector** runs at the start of every cycle (`detectMarketRegime`): median 20-bar return + breadth across the universe → `Bullish` / `Bearish` / `Sideways`. The regime + a regime-appropriate playbook hint is fed to the LLM so strategy adapts dynamically (trend-follow in bull, mean-revert in chop, defensive in selloffs).
-- AI receives universe + positions + cash + strategy + risk-level + market regime **+ per-symbol technicals (RSI/MACD/SMA/EMA/Bollinger) + 30 last candles + per-symbol news + macro headlines + recent predictions + sector mix + position weights + today's drawdown + closed-trade strategy P&L** → returns `{decisions:[{symbol, side, quantity, horizon, strategy_tag, conviction, reason}]}`. Persisted columns on every trade: `horizon`, `strategy_tag`, `realized_pnl` (on SELLs), `market_regime`, `ai_provider`, `ai_model`, `ai_upstream_model`, `ai_latency_ms`.
+- AI receives universe + positions + cash + strategy + risk-level + market regime **+ per-symbol enhanced technicals (30+ indicators + technical strength 0-100) + 30 last candles + per-symbol news + FinBERT sentiment scores + macro headlines + broad market sentiment + recent predictions + sector mix + position weights + today's drawdown + closed-trade strategy P&L** → returns `{decisions:[{symbol, side, quantity, horizon, strategy_tag, conviction, reason}]}`. Persisted columns on every trade: `horizon`, `strategy_tag`, `realized_pnl` (on SELLs), `market_regime`, `ai_provider`, `ai_model`, `ai_upstream_model`, `ai_latency_ms`.
+- **Ensemble Conviction Scoring** — each trade is validated by BOTH the LLM's conviction AND a programmatic conviction scorer. The programmatic score combines: technical strength, FinBERT sentiment, prediction accuracy history, volume confirmation, trend alignment, and market regime. If they disagree by >0.3, a penalty is applied. BUYs require ensemble score ≥ 0.55 AND programmatic floor ≥ 0.40.
+- **Turbulence Index** — computes market volatility regime (Normal / Elevated / Extreme) from recent vs historical price dispersion. Elevated → position sizes halved. Extreme → all new BUYs blocked automatically.
 - **Closed-loop strategy learning** — `getStrategyStats()` aggregates realised P&L per `(strategy_tag, horizon)` from closed SELLs. Surfaced as the **Strategy Performance** card and `GET /api/playground/strategy-stats`. Same data is fed back into the next AI prompt as feedback so the model biases toward playbooks that have actually worked on this account.
-- **Anti-fixation guard** — the AI cannot BUY the same symbol more than once within a 60-minute rolling window. Server-enforced.
+- **Feature Reliability Auto-Tuning** — `feature_reliability` table weights are recalibrated weekly based on which signals (technical, sentiment) correlated with accurate predictions over the past 30 days.
+- **Anti-fixation guard** — the AI cannot BUY the same symbol more than once within a 120-minute rolling window. Server-enforced.
 - **Manual Trade modal** — shows live LTP, available cash, held qty, gross/fee/net cost preview, max-affordable-shares hint. Includes Horizon, Strategy tag and Reason/thesis fields. BUY is hard-blocked when net cost > available cash, SELL beyond held qty. Backed by `GET /api/playground/quote/:symbol`.
 - Execution: 0.1 % fees, transactional, position upsert, cash-balance check.
 - **Equity curve P&L colouring** — Recharts area uses a Y-axis-aligned green→red gradient pivoted on starting capital, with a dashed reference line. Above-baseline = green, below-baseline = red.
@@ -94,10 +100,15 @@ FinPredict-AI is a complete, self-hosted investment terminal:
 - **Portfolio-aware** — when the user's question references their portfolio, the assistant also receives open positions + cash + recent predictions as context.
 - All messages persisted.
 
-### 8. News Aggregator
+### 8. News Aggregator + FinBERT Sentiment Analysis
 - Primary: NewsAPI.org (`NEWSAPI_KEY` optional).
 - Fallback: Google News RSS — works without any key.
 - Cron pulls headlines every 30 min.
+- **FinBERT NLP Sentiment** — all headlines automatically scored via `ProsusAI/finbert` (HuggingFace Inference API). Each article gets:
+  - `sentiment` label: positive / neutral / negative
+  - `sentiment_score`: numeric -1.0 (very bearish) to +1.0 (very bullish)
+- Scoring runs every 15 minutes (un-scored backlog) + on new article persistence.
+- Per-symbol 7-day sentiment aggregates and trend direction feed into AI predictions and paper-trading decisions.
 
 ### 9. IPO Calendar + AI Analysis (12-hour cron)
 - `GET /api/ipo` lists upcoming / active mainboard IPOs (date-normalised to ISO).

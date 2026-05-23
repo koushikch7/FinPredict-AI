@@ -210,3 +210,37 @@ html, body, #root { overflow-x: hidden; max-width: 100vw; }
 @media (max-width: 480px) {
   .card, .stat-card { padding: 14px !important; }
 }
+
+/* ── Documentation prose styles ─────────────────────────────── */
+.prose-doc {
+  @apply text-sm leading-relaxed;
+}
+.prose-doc h4 {
+  @apply text-xs font-bold uppercase tracking-wider text-slate-600 mt-4 mb-2 first:mt-0;
+}
+.prose-doc p {
+  @apply mb-3;
+}
+.prose-doc ul, .prose-doc ol {
+  @apply pl-5 space-y-1.5 mb-3;
+}
+.prose-doc ul { @apply list-disc; }
+.prose-doc ol { @apply list-decimal; }
+.prose-doc table {
+  @apply w-full text-xs border-collapse mb-4;
+}
+.prose-doc thead th {
+  @apply text-left p-2 bg-slate-50 border border-slate-200 font-bold uppercase tracking-wider text-slate-600;
+}
+.prose-doc tbody td {
+  @apply p-2 border border-slate-100;
+}
+.prose-doc code {
+  @apply bg-slate-100 px-1.5 py-0.5 rounded text-xs font-mono text-indigo-700;
+}
+.prose-doc pre {
+  @apply mb-3;
+}
+.prose-doc pre code {
+  @apply bg-transparent p-0;
+}

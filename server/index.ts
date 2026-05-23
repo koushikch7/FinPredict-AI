@@ -9,6 +9,13 @@ import { fileURLToPath } from 'url';
 
 import { config } from './config.js';
 import { logger } from './logger.js';
+
+// CRITICAL: applyPendingRestore must run BEFORE better-sqlite3 opens the DB.
+// It lives in a separate module with no transitive db import.
+import { applyPendingRestore } from './services/pre-restore.js';
+applyPendingRestore();
+
+import { db } from './db/index.js';
 import { runMigrations } from './db/migrations.js';
 import { errorHandler } from './middleware/error-handler.js';
 
@@ -24,11 +31,23 @@ import { newsRouter } from './routes/news.js';
 import { ipoRouter } from './routes/ipo.js';
 import { discoveryRouter } from './routes/discovery.js';
 import { adminRouter } from './routes/admin.js';
+import { backupRouter } from './routes/backup.js';
 
 import { startJobs } from './jobs/scheduler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Global error handlers to prevent process crashes
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error({ reason, promise }, 'Unhandled promise rejection');
+  // Do NOT exit - log and continue
+});
+
+process.on('uncaughtException', (error) => {
+  logger.fatal({ error }, 'Uncaught exception');
+  process.exit(1);
+});
 
 async function main() {
   runMigrations();
@@ -43,9 +62,25 @@ async function main() {
       contentSecurityPolicy: false, // Vite/HMR friendly; tighten via reverse proxy in prod
     }),
   );
+
+  // Restrict CORS to known origins only — never reflect arbitrary origins when
+  // credentials:true is set (that would enable cross-site request forgery).
+  const allowedOrigins = new Set(
+    [
+      config.APP_URL,
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5173',
+    ].filter(Boolean),
+  );
   app.use(
     cors({
-      origin: (origin, cb) => cb(null, origin || true),
+      origin: (origin, cb) => {
+        // Same-origin requests (e.g. curl, Postman, server-to-server) have no Origin header.
+        if (!origin || allowedOrigins.has(origin)) return cb(null, true);
+        cb(new Error(`CORS: origin '${origin}' not allowed`));
+      },
       credentials: true,
     }),
   );
@@ -75,9 +110,14 @@ async function main() {
   });
 
   // ─── API ───────────────────────────────────────────────────────
-  app.get('/api/health', (_req, res) =>
-    res.json({ ok: true, ts: new Date().toISOString(), env: config.NODE_ENV }),
-  );
+  app.get('/api/health', (_req, res) => {
+    try {
+      db.prepare('SELECT 1').get();
+      res.json({ ok: true, ts: new Date().toISOString(), env: config.NODE_ENV, db: 'ok' });
+    } catch (e: any) {
+      res.status(503).json({ ok: false, error: 'Database unhealthy', message: e.message });
+    }
+  });
 
   app.use('/api/auth', authRouter);
   app.use('/api/stocks', stocksRouter);
@@ -91,6 +131,22 @@ async function main() {
   app.use('/api/ipo', ipoRouter);
   app.use('/api/discovery', discoveryRouter);
   app.use('/api/admin', adminRouter);
+  app.use('/api/admin/backups', backupRouter);
+
+  // ─── Documentation (serves .md files from workspace root) ─────
+  const ALLOWED_DOCS = ['README', 'CHANGELOG', 'REQUIREMENTS', 'USER_GUIDE'];
+  app.get('/api/docs/:name', (req, res) => {
+    const name = (req.params.name || '').toUpperCase().replace(/\.MD$/, '');
+    if (!ALLOWED_DOCS.includes(name)) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    const filePath = path.resolve(__dirname, '..', `${name}.md`);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    const content = fs.readFileSync(filePath, 'utf-8');
+    res.type('text/markdown').send(content);
+  });
 
   // ─── Frontend ─────────────────────────────────────────────────
   if (config.isDev) {

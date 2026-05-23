@@ -32,6 +32,7 @@ const Schema = z.object({
 
   DB_PATH: z.string().default('./data/finance.db'),
   NEWS_API_KEY: z.string().optional().default(''),
+  HUGGINGFACE_API_KEY: z.string().optional().default(''),
 
   KITE_API_KEY: z.string().optional().default(''),
   KITE_API_SECRET: z.string().optional().default(''),
@@ -42,6 +43,15 @@ const Schema = z.object({
     .transform((v) => v.toLowerCase() === 'true'),
 
   PLAYGROUND_CRON: z.string().default('*/5 * * * 1-5'),
+
+  // S3 / OCI Object Storage backup
+  S3_ENDPOINT: z.string().optional().default(''),
+  S3_BUCKET: z.string().optional().default(''),
+  S3_REGION: z.string().optional().default('us-east-1'),
+  S3_ACCESS_KEY: z.string().optional().default(''),
+  S3_SECRET_KEY: z.string().optional().default(''),
+  S3_PREFIX: z.string().optional().default('finpredict'),
+  BACKUP_STORAGE_LIMIT_GB: z.coerce.number().default(10),
 });
 
 const parsed = Schema.safeParse(process.env);

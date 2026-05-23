@@ -14,6 +14,8 @@ export function SettingsPage() {
   const [me, setMe] = useState<any>(null);
   const [form, setForm] = useState({ AI_PROVIDER: 'Gemini', AI_API_KEY: '', AI_MODEL: '', AI_BASE_URL: '' });
   const [busy, setBusy] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
+  const [pwdBusy, setPwdBusy] = useState(false);
 
   useEffect(() => {
     api.admin.myAI().then((r: any) => {
@@ -48,6 +50,24 @@ export function SettingsPage() {
       notify(r.ok ? r.message : `Failed: ${r.message}`, r.ok ? 'success' : 'error');
     } catch (e: any) { notify(e.message, 'error'); }
     finally { setBusy(false); }
+  };
+
+  const changePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwdForm.new_password !== pwdForm.confirm_password) {
+      notify('New passwords do not match', 'error');
+      return;
+    }
+    setPwdBusy(true);
+    try {
+      await api.auth.changePassword({
+        current_password: pwdForm.current_password,
+        new_password: pwdForm.new_password,
+      });
+      notify('Password changed successfully', 'success');
+      setPwdForm({ current_password: '', new_password: '', confirm_password: '' });
+    } catch (e: any) { notify(e.message, 'error'); }
+    finally { setPwdBusy(false); }
   };
 
   return (
@@ -115,6 +135,42 @@ export function SettingsPage() {
             <Button variant="secondary" onClick={test} loading={busy}>Test Connection</Button>
           </div>
         </div>
+      </Card>
+
+      <Card title="Change Password" subtitle="Update your login password. Requires your current password to confirm.">
+        <form onSubmit={changePassword} className="space-y-4">
+          <Field label="Current Password">
+            <Input
+              type="password"
+              placeholder="Current password"
+              value={pwdForm.current_password}
+              onChange={(e) => setPwdForm({ ...pwdForm, current_password: e.target.value })}
+              required
+            />
+          </Field>
+          <Field label="New Password" hint="Minimum 8 characters.">
+            <Input
+              type="password"
+              placeholder="New password"
+              value={pwdForm.new_password}
+              onChange={(e) => setPwdForm({ ...pwdForm, new_password: e.target.value })}
+              required
+              minLength={8}
+            />
+          </Field>
+          <Field label="Confirm New Password">
+            <Input
+              type="password"
+              placeholder="Repeat new password"
+              value={pwdForm.confirm_password}
+              onChange={(e) => setPwdForm({ ...pwdForm, confirm_password: e.target.value })}
+              required
+            />
+          </Field>
+          <div className="pt-2">
+            <Button type="submit" loading={pwdBusy}>Change Password</Button>
+          </div>
+        </form>
       </Card>
     </div>
   );

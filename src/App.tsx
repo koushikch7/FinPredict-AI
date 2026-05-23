@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ToastProvider } from './lib/toast';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppShell } from './components/AppShell';
 import { LoginPage, RegisterPage } from './pages/Auth';
 import { DashboardPage } from './pages/Dashboard';
@@ -16,6 +17,7 @@ import { BrokersPage } from './pages/Brokers';
 import { SettingsPage } from './pages/Settings';
 import { AdminPage } from './pages/Admin';
 import { DocsPage } from './pages/Docs';
+import { BackupsPage } from './pages/Backups';
 import type { ReactNode } from 'react';
 
 function Protected({ children }: { children: ReactNode }) {
@@ -41,10 +43,11 @@ function PublicOnly({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <Routes>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <ToastProvider>
+            <Routes>
             <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
             <Route path="/register" element={<PublicOnly><RegisterPage /></PublicOnly>} />
             <Route element={<Protected><AppShell /></Protected>}>
@@ -60,6 +63,7 @@ export default function App() {
               <Route path="/brokers" element={<BrokersPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/admin" element={<AdminOnly><AdminPage /></AdminOnly>} />
+              <Route path="/backups" element={<AdminOnly><BackupsPage /></AdminOnly>} />
               <Route path="/docs" element={<DocsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -67,5 +71,6 @@ export default function App() {
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }

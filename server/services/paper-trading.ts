@@ -3,11 +3,65 @@ import { resolveAIConfig, aiCompleteMeta, type AICallRecord } from './ai.js';
 import { fetchYahooQuote } from './prices.js';
 import { buildContext } from './predictions.js';
 import { fetchMarketNews } from './news.js';
+import { getSymbolSentiment, getMarketSentiment } from './sentiment.js';
+import { computeConviction, getPredictionAccuracy } from './conviction.js';
 import { isNseOpen } from '../utils/market-hours.js';
 import { logger } from '../logger.js';
 import { topBuyPicks, listOpportunities } from './discovery.js';
 
-const FEE_RATE = 0.001; // 0.1% round-trip approximation
+// ══════════════════════════════════════════════════════════════════════════════
+// Realistic Indian Stock Market Charges (Delivery/CNC)
+// ══════════════════════════════════════════════════════════════════════════════
+// Modeled on discount brokers (Zerodha/Groww): flat ₹20 or 0.03% whichever lower
+const BROKERAGE_PCT = 0.0003;       // 0.03%
+const BROKERAGE_CAP = 20;           // ₹20 max per order
+const STT_DELIVERY_PCT = 0.001;     // 0.1% on both BUY and SELL for delivery
+const EXCHANGE_TXN_PCT = 0.0000345; // NSE: 0.00345%
+const GST_PCT = 0.18;              // 18% on brokerage + exchange charges
+const SEBI_PER_CRORE = 10;         // ₹10 per crore of turnover
+const STAMP_DUTY_BUY_PCT = 0.00015; // 0.015% on buy side only
+
+// Tax rates (configurable per account later)
+const STCG_RATE = 0.15;  // 15% short-term capital gains (<1yr holding)
+const LTCG_RATE = 0.10;  // 10% long-term capital gains (>1yr, above ₹1L exemption)
+
+/** Calculate realistic charges for a trade */
+function calculateCharges(side: 'BUY' | 'SELL', grossAmount: number): {
+  brokerage: number; stt: number; exchangeTxn: number; gst: number;
+  sebi: number; stampDuty: number; totalCharges: number;
+} {
+  const brokerage = Math.min(grossAmount * BROKERAGE_PCT, BROKERAGE_CAP);
+  const stt = grossAmount * STT_DELIVERY_PCT; // delivery: both sides
+  const exchangeTxn = grossAmount * EXCHANGE_TXN_PCT;
+  const gst = (brokerage + exchangeTxn) * GST_PCT;
+  const sebi = (grossAmount / 10_000_000) * SEBI_PER_CRORE;
+  const stampDuty = side === 'BUY' ? grossAmount * STAMP_DUTY_BUY_PCT : 0;
+  const totalCharges = brokerage + stt + exchangeTxn + gst + sebi + stampDuty;
+  return { brokerage, stt, exchangeTxn, gst, sebi, stampDuty, totalCharges };
+}
+
+/** Estimate minimum price move needed to break even after all charges + STCG tax */
+function minimumBreakevenPct(buyPrice: number, quantity: number): number {
+  const buyGross = buyPrice * quantity;
+  const buyCharges = calculateCharges('BUY', buyGross).totalCharges;
+  // Assume sell at same price initially to estimate sell charges
+  const sellCharges = calculateCharges('SELL', buyGross).totalCharges;
+  const totalCost = buyCharges + sellCharges;
+  // After STCG tax, you keep only (1 - STCG_RATE) of profit
+  // profit_after_tax = (sellGross - buyGross - totalCost) * (1 - STCG_RATE)
+  // For break-even: (move * quantity - totalCost) * (1 - STCG_RATE) >= 0
+  // move >= totalCost / quantity
+  const breakEvenMove = totalCost / quantity;
+  return (breakEvenMove / buyPrice) * 100; // as percentage
+}
+
+// Trading quality thresholds
+const MIN_CONVICTION_BUY = 0.70;      // Only buy with high conviction
+const MIN_CONVICTION_SELL = 0.50;     // Lower bar for sells (capital preservation)
+const MAX_BUYS_PER_CYCLE = 3;         // Quality over quantity
+const TRAILING_STOP_PCT = 4;          // Trail 4% below peak
+const MIN_REWARD_RISK_RATIO = 2.0;    // Expected gain must be 2x potential loss
+
 const DEFAULT_UNIVERSE = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'ITC', 'SBIN', 'LT', 'BHARTIARTL', 'MARUTI'];
 
 export interface PaperAccount {
@@ -161,7 +215,8 @@ export function executeTrade(opts: ExecuteOpts) {
     const acc = db.prepare('SELECT * FROM paper_accounts WHERE id = ?').get(opts.accountId) as PaperAccount | undefined;
     if (!acc) throw new Error('Account not found');
     const gross = opts.price * opts.quantity;
-    const fees = gross * FEE_RATE;
+    const charges = calculateCharges(opts.side, gross);
+    const fees = charges.totalCharges;
     const net = opts.side === 'BUY' ? gross + fees : gross - fees;
     let realizedPnl: number | null = null;
 
@@ -192,8 +247,9 @@ export function executeTrade(opts: ExecuteOpts) {
         .prepare('SELECT * FROM paper_positions WHERE account_id = ? AND stock_id = ?')
         .get(opts.accountId, opts.stockId) as { id: number; quantity: number; average_price: number } | undefined;
       if (!pos || pos.quantity < opts.quantity) throw new Error('Not enough quantity to sell');
-      // Realised P&L on this SELL = (sell price - avg cost) * qty - fees.
-      realizedPnl = (opts.price - pos.average_price) * opts.quantity - fees;
+      // Realised P&L = (sell price - avg cost) * qty - buy+sell charges
+      const buyCharges = calculateCharges('BUY', pos.average_price * opts.quantity).totalCharges;
+      realizedPnl = (opts.price - pos.average_price) * opts.quantity - fees - buyCharges;
       const remaining = pos.quantity - opts.quantity;
       if (remaining === 0) {
         db.prepare('DELETE FROM paper_positions WHERE id = ?').run(pos.id);
@@ -275,6 +331,65 @@ export function detectMarketRegime(symbols: string[]): {
 }
 
 /**
+ * Phase 5: Turbulence Index — measures how unusual current market conditions are.
+ * Based on Mahalanobis-distance-inspired approach from FinRL.
+ * Compares recent daily returns variance to historical norm.
+ * Returns a multiplier: 1.0 = normal, <1.0 = reduce position sizes.
+ */
+export function computeTurbulence(symbols: string[]): {
+  turbulence: number; // raw score (higher = more turbulent)
+  level: 'Normal' | 'Elevated' | 'Extreme';
+  positionMultiplier: number; // 1.0, 0.5, or 0 (no new buys)
+} {
+  if (symbols.length < 3) return { turbulence: 0, level: 'Normal', positionMultiplier: 1.0 };
+
+  // Get recent 5-day returns and historical 60-day volatility
+  const rows = db.prepare(
+    `SELECT s.symbol,
+            (SELECT price FROM stock_prices WHERE stock_id = s.id ORDER BY id DESC LIMIT 1) AS p0,
+            (SELECT price FROM stock_prices WHERE stock_id = s.id ORDER BY id DESC LIMIT 1 OFFSET 4) AS p5,
+            (SELECT price FROM stock_prices WHERE stock_id = s.id ORDER BY id DESC LIMIT 1 OFFSET 59) AS p60
+     FROM stocks s WHERE s.symbol IN (${symbols.map(() => '?').join(',')})`,
+  ).all(...symbols) as Array<{ symbol: string; p0: number | null; p5: number | null; p60: number | null }>;
+
+  const recentRets: number[] = [];
+  const longRets: number[] = [];
+
+  for (const r of rows) {
+    if (r.p0 && r.p5 && r.p5 > 0) {
+      recentRets.push(Math.abs(((r.p0 - r.p5) / r.p5) * 100));
+    }
+    if (r.p0 && r.p60 && r.p60 > 0) {
+      const dailyRet = Math.abs(((r.p0 - r.p60) / r.p60) * 100) / 60;
+      longRets.push(dailyRet);
+    }
+  }
+
+  if (recentRets.length < 3) return { turbulence: 0, level: 'Normal', positionMultiplier: 1.0 };
+
+  // Turbulence = ratio of recent absolute moves to historical norm
+  const recentAvg = recentRets.reduce((s, v) => s + v, 0) / recentRets.length;
+  const historicalAvg = longRets.length > 0
+    ? longRets.reduce((s, v) => s + v, 0) / longRets.length
+    : 1;
+  const turbulence = historicalAvg > 0 ? recentAvg / (historicalAvg * 5) : 1;
+
+  // Thresholds based on empirical observations
+  let level: 'Normal' | 'Elevated' | 'Extreme' = 'Normal';
+  let positionMultiplier = 1.0;
+
+  if (turbulence > 3.0) {
+    level = 'Extreme';
+    positionMultiplier = 0; // no new buys
+  } else if (turbulence > 1.8) {
+    level = 'Elevated';
+    positionMultiplier = 0.5; // halve position sizes
+  }
+
+  return { turbulence, level, positionMultiplier };
+}
+
+/**
  * Aggregate realised-PnL per (strategy_tag, horizon) bucket so the UI can
  * surface which playbooks are winning. Used as a feedback signal back into
  * the next AI prompt as well.
@@ -304,6 +419,25 @@ export function getStrategyStats(accountId: number) {
 export async function recomputeEquity(accountId: number) {
   const acc = db.prepare('SELECT * FROM paper_accounts WHERE id = ?').get(accountId) as PaperAccount;
   const positions = getPositions(accountId);
+
+  // If no open positions, only sample once per hour to avoid flooding the
+  // equity_curve table with identical cash-only rows.
+  if (positions.length === 0) {
+    const last = db
+      .prepare(
+        'SELECT timestamp FROM paper_equity_curve WHERE account_id = ? ORDER BY id DESC LIMIT 1',
+      )
+      .get(accountId) as { timestamp: string } | undefined;
+    if (last) {
+      const minutesSince = (Date.now() - new Date(last.timestamp).getTime()) / 60_000;
+      if (minutesSince < 60) return { cash: acc.cash, equity: 0, total: acc.cash };
+    }
+    db.prepare(
+      'INSERT INTO paper_equity_curve (account_id, cash, equity, total) VALUES (?, ?, ?, ?)',
+    ).run(accountId, acc.cash, 0, acc.cash);
+    return { cash: acc.cash, equity: 0, total: acc.cash };
+  }
+
   let equity = 0;
   for (const p of positions) {
     const q = await fetchYahooQuote(p.symbol, p.exchange);
@@ -322,12 +456,13 @@ interface AIAction {
   side: 'BUY' | 'SELL' | 'HOLD';
   quantity: number;
   reason: string;
-  horizon?: 'Intraday' | 'Short-term' | 'Long-term';
+  horizon?: 'Intraday' | 'Short-term' | 'Long-term'; // Intraday will be rejected at execution
   conviction?: number;
+  strategy_tag?: string;
 }
 
 /** How recently the AI bought the same symbol counts as "fixation". */
-const FIXATION_WINDOW_MIN = 60;
+const FIXATION_WINDOW_MIN = 120; // Increased from 60 to reduce churning
 const FIXATION_MAX_BUYS_IN_WINDOW = 1;
 
 /** One full AI decision cycle for the user's playground. Returns trades executed.
@@ -390,21 +525,44 @@ export async function runAITraderCycle(
     }
   }
 
-  // ── Stop-loss / take-profit pre-pass ──
+  // ── Stop-loss / trailing-stop / take-profit pre-pass ──
   const regimeInfo = detectMarketRegime(positions.map((p) => p.symbol).slice(0, 12));
   const forced: Array<{ symbol: string; reason: string }> = [];
   for (const p of positions) {
     const ltp = ltps.get(p.symbol) ?? p.average_price;
     const pnlPct = ((ltp - p.average_price) / p.average_price) * 100;
-    if (pnlPct <= -acc.stop_loss_pct) {
+
+    // Trailing stop: check if position has moved up significantly and is now pulling back
+    // Look at peak price since entry from recent quotes
+    const peakRow = db.prepare(
+      `SELECT MAX(price) as peak FROM paper_trades
+       WHERE account_id = ? AND stock_id = ? AND side = 'BUY'
+       ORDER BY id DESC LIMIT 1`,
+    ).get(acc.id, p.stock_id) as { peak: number } | undefined;
+    const entryPeak = Math.max(p.average_price, peakRow?.peak ?? p.average_price, ltp);
+
+    // If position was up >5% at peak but is now trailing back, use trailing stop
+    const peakGain = ((entryPeak - p.average_price) / p.average_price) * 100;
+    const drawdownFromPeak = ((entryPeak - ltp) / entryPeak) * 100;
+
+    if (peakGain > 5 && drawdownFromPeak >= TRAILING_STOP_PCT) {
+      // Trailing stop triggered — lock in some profit
+      try {
+        executeTrade({ accountId: acc.id, stockId: p.stock_id, side: 'SELL', quantity: p.quantity, price: ltp, reason: `Trailing stop: was +${peakGain.toFixed(1)}%, pullback ${drawdownFromPeak.toFixed(1)}% from peak`, ai: true, strategy_tag: 'risk:trailing-stop', market_regime: regimeInfo.regime });
+        forced.push({ symbol: p.symbol, reason: `Trailing stop (peak +${peakGain.toFixed(1)}%, now +${pnlPct.toFixed(1)}%)` });
+      } catch {}
+    } else if (pnlPct <= -acc.stop_loss_pct) {
+      // Hard stop-loss
       try {
         executeTrade({ accountId: acc.id, stockId: p.stock_id, side: 'SELL', quantity: p.quantity, price: ltp, reason: `Stop-loss ${pnlPct.toFixed(2)}%`, ai: true, strategy_tag: 'risk:stop-loss', market_regime: regimeInfo.regime });
         forced.push({ symbol: p.symbol, reason: `Stop-loss ${pnlPct.toFixed(2)}%` });
       } catch {}
     } else if (pnlPct >= acc.take_profit_pct) {
+      // Take profit — sell 50% to lock in gains, let rest ride with trailing stop
+      const sellQty = Math.max(1, Math.floor(p.quantity / 2));
       try {
-        executeTrade({ accountId: acc.id, stockId: p.stock_id, side: 'SELL', quantity: p.quantity, price: ltp, reason: `Take-profit ${pnlPct.toFixed(2)}%`, ai: true, strategy_tag: 'risk:take-profit', market_regime: regimeInfo.regime });
-        forced.push({ symbol: p.symbol, reason: `Take-profit ${pnlPct.toFixed(2)}%` });
+        executeTrade({ accountId: acc.id, stockId: p.stock_id, side: 'SELL', quantity: sellQty, price: ltp, reason: `Partial take-profit ${pnlPct.toFixed(2)}% (50% position)`, ai: true, strategy_tag: 'risk:take-profit', market_regime: regimeInfo.regime });
+        forced.push({ symbol: p.symbol, reason: `Partial take-profit ${pnlPct.toFixed(2)}%` });
       } catch {}
     }
   }
@@ -485,6 +643,14 @@ export async function runAITraderCycle(
     }));
   } catch {}
 
+  // ── Phase 1: Aggregate sentiment signals ──
+  const symbolSentiments: Record<string, any> = {};
+  for (const sym of ctxSymbols) {
+    const s = getSymbolSentiment(sym, 7);
+    if (s) symbolSentiments[sym] = { score: s.avgScore.toFixed(2), trend: s.trend, articles: s.count };
+  }
+  const broadSentiment = getMarketSentiment(3);
+
   // Sector mix of the symbols the AI is reasoning about
   const sectorMix = (db.prepare(
     `SELECT sector, COUNT(*) c FROM stocks WHERE symbol IN (${ctxSymbols.map(() => '?').join(',') || "''"})
@@ -502,30 +668,63 @@ export async function runAITraderCycle(
   // Regime-aware playbook hint — tells the AI which class of strategy fits today's tape.
   const regimePlaybook =
     regimeInfo.regime === 'Bullish'
-      ? 'Favor breakout / momentum / trend-following entries; trail stops, ride winners.'
+      ? 'Favor breakout / momentum / trend-following entries; trail stops, ride winners. Only buy stocks above their 20-day SMA with RSI between 40-70 (not overbought).'
       : regimeInfo.regime === 'Bearish'
-      ? 'Favor capital preservation; raise cash, tighten stops, only high-conviction longs in defensive sectors.'
-      : 'Favor mean-reversion and pair-trades around support/resistance; keep position sizes smaller.';
+      ? 'Capital preservation is priority. Raise cash aggressively. Only high-conviction longs in defensive sectors with strong support levels. Keep at least 50% in cash.'
+      : 'Favor mean-reversion entries at Bollinger lower band / strong support. Smaller position sizes. Avoid chasing. Wait for RSI < 35 on quality stocks.';
 
-  const system = `You are an autonomous AI portfolio manager for an Indian-markets paper-trading account.
+  // Calculate break-even threshold for a typical trade at this equity level
+  const typicalTradeSize = totalEquityHint * 0.10; // 10% position
+  const typicalQty = Math.max(1, Math.floor(typicalTradeSize / 1500)); // assume ~₹1500 avg stock price
+  const breakEvenPct = minimumBreakevenPct(1500, typicalQty);
+
+  const system = `You are a DISCIPLINED, PATIENT AI portfolio manager for an Indian-markets paper-trading account that will eventually become a real trading account.
+
+CRITICAL OBJECTIVE: Generate CONSISTENT PROFITS after accounting for all real charges (STT, brokerage, GST, stamp duty) and 15% short-term capital gains tax. Every trade must have a CLEAR edge.
+
 Strategy: ${accAfter.strategy}. Risk: ${accAfter.risk_level}. Universe mode: ${universeMode}.
-Market regime today: ${regimeInfo.regime} (median 20-bar return ${regimeInfo.medianReturnPct.toFixed(2)}%, breadth up=${regimeInfo.breadth.up}/down=${regimeInfo.breadth.down}/flat=${regimeInfo.breadth.flat}).
-Playbook for this regime: ${regimePlaybook}
-Objective: maximise risk-adjusted return. Avoid concentration; diversify across sectors. Adapt strategy to regime — do not force trend trades in a sideways tape, do not chase mean-reversion in a strong trend.
-Hard rules:
+Market regime: ${regimeInfo.regime} (median 20-bar return ${regimeInfo.medianReturnPct.toFixed(2)}%, breadth up=${regimeInfo.breadth.up}/down=${regimeInfo.breadth.down}/flat=${regimeInfo.breadth.flat}).
+Playbook: ${regimePlaybook}
+
+COST AWARENESS (per trade, approximate):
+- Round-trip charges: ~0.25-0.35% (STT 0.1%, brokerage ₹20, GST, stamp duty)
+- Short-term capital gains tax: 15% on profits
+- Minimum price move needed to break even: ~${breakEvenPct.toFixed(2)}%
+- Therefore: ONLY take trades where you expect AT LEAST ${(breakEvenPct * MIN_REWARD_RISK_RATIO).toFixed(1)}% upside (${MIN_REWARD_RISK_RATIO}:1 reward-to-risk after costs)
+
+DISCIPLINE RULES (NON-NEGOTIABLE):
+1. QUALITY > QUANTITY: Maximum ${MAX_BUYS_PER_CYCLE} BUY decisions per cycle. It is PERFECTLY FINE to return zero decisions if no compelling setup exists.
+2. CONVICTION THRESHOLD: Only BUY with conviction ≥ ${MIN_CONVICTION_BUY}. If unsure, HOLD. Patience pays.
+3. MINIMUM EXPECTED RETURN: Each BUY must target at least ${(breakEvenPct * 3).toFixed(1)}% gain (3x break-even) to justify the trade.
+4. ENTRY CRITERIA — ALL must be true for a BUY:
+   a) Stock is in an uptrend (above 20-SMA) OR at strong support with reversal signal
+   b) RSI is NOT overbought (RSI < 70) — do NOT chase rallies
+   c) Volume confirms the move (above average or increasing)
+   d) News/sentiment supports the direction (no negative surprises)
+   e) Risk/reward ratio is favorable: stop-loss distance < expected gain / 2
+5. EXIT CRITERIA for SELL:
+   a) Thesis is broken (stock dropped below key support)
+   b) Better opportunity exists (rotate capital)
+   c) Target achieved
+   d) Negative news that changes fundamentals
+6. POSITION SIZING: Riskier setups get smaller positions. High-conviction with multiple confirming signals → larger.
+7. SECTOR DIVERSIFICATION: No more than 30% of portfolio in one sector.
+8. HOLD BIAS: When in doubt, HOLD. Transaction costs eat profits. Do NOT churn.
+9. NO INTRADAY: All trades must have horizon "Short-term" (days-weeks) or "Long-term" (months+). No intraday speculation.
+10. RISK MANAGEMENT: Every BUY must specify where the stop-loss should be (in the reason field).
+
+Hard constraints:
 - Only operate within these symbols: ${universe.join(', ')}.
 - BUY only with available cash ₹${accAfter.cash.toFixed(2)}; never go negative.
 - SELL only what is currently held.
 - Position-size cap ₹${maxPosNotional.toFixed(0)} per single stock (max ${accAfter.max_position_pct}% of total equity).
 - DO NOT BUY any of these symbols this cycle (recently bought, anti-fixation): ${blockedFromBuy.length ? blockedFromBuy.join(', ') : 'none'}.
-- Prefer HOLD when signals are weak or technicals conflict; do not force trades.
-- Each BUY MUST include an intended holding horizon: "Intraday", "Short-term" (days–weeks) or "Long-term" (months+).
-- Each decision MUST tag a strategy_tag from: momentum, mean-reversion, breakout, value, swing, defensive, news-driven, hedge.
-- Use the supplied technicals (RSI/MACD/SMA/EMA/Bollinger), recent candles, news headlines, recent predictions, discovery opportunities AND the historical strategy P&L below to bias toward playbooks that have actually worked on THIS account.
-- Reduce a position if conviction has dropped or technicals turned negative.
-- Take profits proactively on strong rallies (≥1× take_profit_pct away from entry).
-- Aim for at most 6–8 BUY decisions per cycle; consolidate over churn.
-Respond ONLY as JSON: { "decisions": [ { "symbol": string, "side": "BUY"|"SELL"|"HOLD", "quantity": number, "reason": string, "horizon": "Intraday"|"Short-term"|"Long-term", "strategy_tag": string, "conviction": number /* 0..1 */ } ] }`;
+- Each BUY must include horizon: "Short-term" or "Long-term".
+- Each decision must tag a strategy_tag: momentum, mean-reversion, breakout, value, swing, defensive, news-driven.
+- LEARN FROM HISTORY: Review the past strategy P&L below. AVOID strategies that have lost money. FAVOR strategies that have been profitable.
+
+Respond ONLY as JSON: { "decisions": [ { "symbol": string, "side": "BUY"|"SELL"|"HOLD", "quantity": number, "reason": string (include stop-loss level and target price), "horizon": "Short-term"|"Long-term", "strategy_tag": string, "conviction": number /* 0..1, BUY needs ≥${MIN_CONVICTION_BUY} */ } ] }
+If no good setups exist, return: { "decisions": [] }`;
 
   const prompt = `Cash: ₹${accAfter.cash.toFixed(2)}
 Total equity (cash+positions): ₹${totalEquityHint.toFixed(2)}
@@ -547,6 +746,8 @@ Sector mix of candidate symbols: ${JSON.stringify(sectorMix)}
 Discovery opportunities (latest scan, BUY-only): ${JSON.stringify(opportunities)}
 Recent predictions for these symbols: ${JSON.stringify(recentPredictions).slice(0, 4_000)}
 Macro/market headlines: ${JSON.stringify(macroNews)}
+FinBERT sentiment per symbol (7-day avg, -1=bearish to +1=bullish): ${JSON.stringify(symbolSentiments)}
+Broad market sentiment (3-day): score=${broadSentiment.avgScore.toFixed(2)}, articles=${broadSentiment.count}, bullish=${broadSentiment.bullish}
 Past strategy P&L on this account (closed trades): ${JSON.stringify(strategyStats)}
 
 Per-symbol market context (technicals + last 30 candles + per-symbol news):
@@ -565,22 +766,105 @@ ${JSON.stringify(ctxs).slice(0, 12_000)}`;
     return { decisions: [], executed: 0, errors: [e.message], forced_closes: forced, daily_dd_pct: dailyDdPct };
   }
 
+  // ── Phase 5: Turbulence Index — adjust position sizing in volatile markets ──
+  const turbulence = computeTurbulence(universe.slice(0, 15));
+  if (turbulence.level === 'Extreme') {
+    logger.warn({ turbulence: turbulence.turbulence }, 'AI trader: EXTREME turbulence — blocking new buys');
+  }
+
+  // ── Phase 6: Get market-wide sentiment for ensemble ──
+  const mktSentiment = getMarketSentiment(3);
+
   const errors: string[] = [];
   let executed = 0;
+  let buysThisCycle = 0;
   const aiAttr = aiMeta
     ? { ai_provider: aiMeta.provider, ai_model: aiMeta.model, ai_upstream_model: aiMeta.upstreamModel, ai_latency_ms: aiMeta.ms }
     : {};
-  for (const d of decisions) {
+
+  // Sort decisions by conviction (highest first) so best trades get priority
+  const sortedDecisions = [...decisions].sort((a, b) => (b.conviction ?? 0) - (a.conviction ?? 0));
+
+  for (const d of sortedDecisions) {
     if (d.side === 'HOLD' || !d.quantity || d.quantity <= 0) continue;
     if (!universe.includes(d.symbol)) {
       errors.push(`Skipped ${d.symbol}: outside universe`);
       continue;
     }
+
+    // ── CONVICTION FILTER ──
+    const conviction = d.conviction ?? 0;
+    if (d.side === 'BUY' && conviction < MIN_CONVICTION_BUY) {
+      errors.push(`Skipped BUY ${d.symbol}: conviction ${conviction.toFixed(2)} < threshold ${MIN_CONVICTION_BUY}`);
+      continue;
+    }
+    if (d.side === 'SELL' && conviction < MIN_CONVICTION_SELL) {
+      errors.push(`Skipped SELL ${d.symbol}: conviction ${conviction.toFixed(2)} < threshold ${MIN_CONVICTION_SELL}`);
+      continue;
+    }
+
+    // ── Phase 3: PROGRAMMATIC CONVICTION FLOOR (data-driven, not LLM-hallucinated) ──
+    const symbolCtx = ctxs[d.symbol];
+    const techStrength = symbolCtx?.enhanced?.technicalStrength ?? 50;
+    const symSentiment = getSymbolSentiment(d.symbol, 7);
+    const predAccuracy = getPredictionAccuracy(d.symbol);
+    const volConfirm = symbolCtx?.enhanced?.volumeRatio20 != null && symbolCtx.enhanced.volumeRatio20 > 1.0
+      && ((d.side === 'BUY' && (symbolCtx.enhanced.priceChange1d ?? 0) > 0) || (d.side === 'SELL' && (symbolCtx.enhanced.priceChange1d ?? 0) < 0));
+    const trendAligned = symbolCtx?.enhanced
+      ? (symbolCtx.enhanced.close > (symbolCtx.enhanced.sma20 ?? 0) && (symbolCtx.enhanced.macd?.histogram ?? 0) > 0)
+      : false;
+
+    const progConviction = computeConviction({
+      technicalStrength: techStrength,
+      sentimentScore: symSentiment?.avgScore ?? null,
+      sentimentTrend: symSentiment?.trend ?? null,
+      predictionAccuracy: predAccuracy,
+      volumeConfirmation: volConfirm,
+      trendAlignment: trendAligned,
+      marketRegime: regimeInfo.regime,
+      side: d.side,
+    });
+
+    // Phase 4: ENSEMBLE — compare LLM conviction vs programmatic conviction
+    // If they disagree significantly, penalize
+    const ensembleScore = (conviction + progConviction.score) / 2;
+    const disagreement = Math.abs(conviction - progConviction.score);
+    const ensemblePenalty = disagreement > 0.3 ? 0.15 : 0;
+    const finalConviction = ensembleScore - ensemblePenalty;
+
+    if (d.side === 'BUY' && progConviction.score < 0.40) {
+      errors.push(`Skipped BUY ${d.symbol}: programmatic conviction ${progConviction.score.toFixed(2)} too low (${progConviction.reason})`);
+      continue;
+    }
+    if (d.side === 'BUY' && finalConviction < 0.55) {
+      errors.push(`Skipped BUY ${d.symbol}: ensemble conviction ${finalConviction.toFixed(2)} below 0.55 (LLM=${conviction.toFixed(2)}, prog=${progConviction.score.toFixed(2)}, disagreement=${disagreement.toFixed(2)})`);
+      continue;
+    }
+
+    // ── Phase 5: TURBULENCE — block buys in extreme conditions, halve in elevated ──
+    if (d.side === 'BUY' && turbulence.level === 'Extreme') {
+      errors.push(`Skipped BUY ${d.symbol}: EXTREME market turbulence (${turbulence.turbulence.toFixed(2)})`);
+      continue;
+    }
+
+    // ── MAX BUYS PER CYCLE ──
+    if (d.side === 'BUY' && buysThisCycle >= MAX_BUYS_PER_CYCLE) {
+      errors.push(`Skipped BUY ${d.symbol}: max ${MAX_BUYS_PER_CYCLE} buys/cycle reached`);
+      continue;
+    }
+
     // Anti-fixation: ignore further BUYs of a symbol the AI already bought recently.
     if (d.side === 'BUY' && (recentBuyCounts.get(d.symbol) ?? 0) >= FIXATION_MAX_BUYS_IN_WINDOW) {
       errors.push(`Skipped BUY ${d.symbol}: anti-fixation (already bought in last ${FIXATION_WINDOW_MIN}m)`);
       continue;
     }
+
+    // ── REJECT INTRADAY ──
+    if (d.horizon === 'Intraday') {
+      errors.push(`Skipped ${d.side} ${d.symbol}: Intraday horizon not allowed (use Short-term or Long-term)`);
+      continue;
+    }
+
     const stock = db.prepare('SELECT * FROM stocks WHERE symbol = ?').get(d.symbol) as any;
     if (!stock) {
       errors.push(`Unknown symbol ${d.symbol}`);
@@ -604,15 +888,27 @@ ${JSON.stringify(ctxs).slice(0, 12_000)}`;
         const existingNotional = existing ? existing.quantity * q.price : 0;
         const headroom = Math.max(0, maxPosNotional - existingNotional);
         const cashLimit = accAfter.cash * 0.95;
-        const maxQty = Math.floor(Math.min(headroom, cashLimit) / q.price);
+        // Phase 5: Apply turbulence multiplier to reduce position size in volatile markets
+        const turbulenceAdjusted = Math.min(headroom, cashLimit) * turbulence.positionMultiplier;
+        const maxQty = Math.floor(turbulenceAdjusted / q.price);
         const qty = Math.max(0, Math.min(Math.floor(d.quantity), maxQty));
         if (qty <= 0) {
           errors.push(`Skipped BUY ${d.symbol}: position-cap or cash limit (max ${maxQty})`);
           continue;
         }
+
+        // ── BREAK-EVEN CHECK: ensure expected return justifies costs ──
+        const bevenPct = minimumBreakevenPct(q.price, qty);
+        // If the trade is too small relative to costs, skip it
+        if (bevenPct > 2.0) {
+          errors.push(`Skipped BUY ${d.symbol}: break-even ${bevenPct.toFixed(2)}% too high for qty ${qty}`);
+          continue;
+        }
+
         executeTrade({ accountId: acc.id, stockId: stock.id, side: 'BUY', quantity: qty, price: q.price, reason: d.reason, ai: true, horizon: d.horizon, strategy_tag: tag, market_regime: regimeInfo.regime, ...aiAttr });
         // Update local map so the AI can't double-spend within the same cycle.
         recentBuyCounts.set(d.symbol, (recentBuyCounts.get(d.symbol) ?? 0) + 1);
+        buysThisCycle++;
       }
       executed++;
     } catch (e: any) {
@@ -621,6 +917,7 @@ ${JSON.stringify(ctxs).slice(0, 12_000)}`;
   }
 
   await recomputeEquity(acc.id);
+  logger.info({ userId, decisions: decisions.length, executed, buysThisCycle, errors: errors.length }, 'AI trader cycle complete');
   return {
     decisions,
     executed: executed + forced.length,
