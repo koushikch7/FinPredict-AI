@@ -180,6 +180,14 @@ interface CallOpts {
   temperature?: number;
   /** Tag for logs/metrics, e.g. 'discovery', 'predictions', 'paper-trader'. */
   callerTag?: string;
+  /** v1.20: opt in to Arbiter X-Arbiter-Realtime: true (Tavily web search). */
+  realtime?: boolean;
+  /** v1.20: hint Arbiter to bias toward a provider for this call. */
+  preferProvider?: string;
+  /** v1.20: providers to deprioritise (e.g. pollinations for strict JSON). */
+  avoidProviders?: string[];
+  /** v1.20.1: strict JSON-schema mode (overrides .json when set). */
+  responseSchema?: Record<string, unknown>;
 }
 
 /** In-memory ring buffer of the most-recent AI calls (newest last). */
@@ -196,6 +204,12 @@ export interface AICallRecord {
   upstreamModel?: string;   // model id reported in the response (Arbiter routes to e.g. gemini-2.5-flash-lite)
   promptChars?: number;
   responseChars?: number;
+  /** v1.20: complexity tier surfaced by Arbiter (TRIVIAL..EXPERT). */
+  routedComplexity?: string;
+  /** v1.20: actual provider Arbiter dispatched to (may differ from request.provider). */
+  routedProvider?: string;
+  /** v1.20: how many Tavily sources were used to ground this response. */
+  realtimeSources?: number;
 }
 const recentCalls: AICallRecord[] = [];
 function pushCall(rec: AICallRecord) {
@@ -218,13 +232,17 @@ export async function aiComplete(cfg: ResolvedAI, opts: CallOpts): Promise<strin
     return s;
   };
 
-  const callOpenAICompatible = async (c: ResolvedAI): Promise<{ text: string; upstreamModel?: string }> => {
+  const callOpenAICompatible = async (c: ResolvedAI): Promise<{ text: string; upstreamModel?: string; complexity?: string; routedProvider?: string; realtimeSources?: string[] }> => {
     // Some upstream gateways (e.g. Arbiter behind Cloudflare) flag the default
     // `OpenAI/NodeJS` User-Agent as a bot.  Send a neutral UA + identifying header
     // so the WAF lets the request through.
     const defaultHeaders: Record<string, string> = {
-      'User-Agent': 'FinPredict-AI/1.1 (+https://finpredict.chkoushik.com)',
+      'User-Agent': 'FinPredict-AI/1.6 (+https://finpredict.chkoushik.com)',
     };
+    // FP-1.20: opt in to Arbiter real-time web search via Tavily when caller requests it.
+    if (c.provider === 'Arbiter' && opts.realtime) {
+      defaultHeaders['X-Arbiter-Realtime'] = 'true';
+    }
     const client = new OpenAI({ apiKey: c.apiKey, baseURL: c.baseURL, defaultHeaders });
 
     // Arbiter v1.12+ routing hints. Safe to send to other OpenAI-compatible
@@ -233,10 +251,16 @@ export async function aiComplete(cfg: ResolvedAI, opts: CallOpts): Promise<strin
     // payloads minimal everywhere else.
     const arbiterExtras: Record<string, unknown> = {};
     if (c.provider === 'Arbiter') {
-      arbiterExtras.metadata = {
+      const md: Record<string, unknown> = {
         arbiter_intent: arbiterIntentFor(opts.callerTag),
         priority: arbiterPriorityFor(opts.callerTag),
       };
+      // FP-1.20: per-call provider preferences (Discovery prefers strict-JSON providers,
+      // avoids weak ones; chat/IPO can opt into realtime web search).
+      if (opts.preferProvider) md.prefer_provider = opts.preferProvider;
+      if (opts.avoidProviders && opts.avoidProviders.length) md.avoid_providers = opts.avoidProviders;
+      if (opts.realtime) md.realtime = true;
+      arbiterExtras.metadata = md;
       // Let the gateway pick a capability-matched alternate model when our
       // pinned model fails. Cheaper + faster than a full SDK-level retry.
       arbiterExtras.fallback = 'chain';
@@ -245,27 +269,34 @@ export async function aiComplete(cfg: ResolvedAI, opts: CallOpts): Promise<strin
     const resp = await client.chat.completions.create({
       model: c.model,
       temperature: opts.temperature ?? 0.3,
-      response_format: opts.json ? { type: 'json_object' } : undefined,
+      response_format: opts.responseSchema
+        ? { type: 'json_schema', json_schema: opts.responseSchema as any }
+        : (opts.json ? { type: 'json_object' } : undefined),
       messages: [
         ...(opts.systemPrompt ? [{ role: 'system' as const, content: opts.systemPrompt }] : []),
         { role: 'user', content: opts.prompt },
       ],
       ...arbiterExtras,
     } as Parameters<typeof client.chat.completions.create>[0]);
+    const resp2 = resp as any;
+    const xArb = resp2.x_arbiter || {};
     return {
-      text: cleanJSON(resp.choices[0]?.message?.content ?? ''),
-      upstreamModel: (resp as any).model,
+      text: cleanJSON(resp2.choices?.[0]?.message?.content ?? ''),
+      upstreamModel: resp2.model,
+      complexity: xArb.complexity,
+      routedProvider: xArb.provider,
+      realtimeSources: xArb.realtime_sources,
     };
   };
 
-  const callGemini = async (c: ResolvedAI): Promise<{ text: string; upstreamModel?: string }> => {
+  const callGemini = async (c: ResolvedAI): Promise<{ text: string; upstreamModel?: string; complexity?: string; routedProvider?: string; realtimeSources?: string[] }> => {
     const ai = new GoogleGenAI({ apiKey: c.apiKey });
     const res: any = await ai.models.generateContent({
       model: c.model,
       contents: opts.systemPrompt ? `${opts.systemPrompt}\n\n${opts.prompt}` : opts.prompt,
       config: opts.json ? { responseMimeType: 'application/json' } : undefined,
     });
-    return { text: cleanJSON(res.text || ''), upstreamModel: c.model };
+    return { text: cleanJSON(res.text || ''), upstreamModel: c.model, complexity: undefined, routedProvider: c.provider, realtimeSources: undefined };
   };
 
   const runOnce = (c: ResolvedAI) =>
@@ -283,7 +314,7 @@ export async function aiComplete(cfg: ResolvedAI, opts: CallOpts): Promise<strin
     const r = await withTimeout(runOnce(cfg));
     const ms = Date.now() - start;
     logger.info(
-      { ai: 'call', provider: cfg.provider, model: cfg.model, upstreamModel: r.upstreamModel, source: cfg.source, caller: tag, ms, chars: r.text.length },
+      { ai: 'call', provider: cfg.provider, model: cfg.model, upstreamModel: r.upstreamModel, routedComplexity: r.complexity, routedProvider: r.routedProvider, realtimeSources: (r.realtimeSources || []).length, source: cfg.source, caller: tag, ms, chars: r.text.length },
       `AI ok → ${cfg.provider}/${cfg.model}${r.upstreamModel && r.upstreamModel !== cfg.model ? ` (routed: ${r.upstreamModel})` : ''} • ${ms}ms • ${tag}`,
     );
     pushCall({
@@ -294,7 +325,7 @@ export async function aiComplete(cfg: ResolvedAI, opts: CallOpts): Promise<strin
       caller: tag,
       ms,
       ok: true,
-      upstreamModel: r.upstreamModel,
+      upstreamModel: r.upstreamModel, routedComplexity: r.complexity, routedProvider: r.routedProvider, realtimeSources: (r.realtimeSources || []).length,
       promptChars: (opts.systemPrompt?.length ?? 0) + opts.prompt.length,
       responseChars: r.text.length,
     });
@@ -316,7 +347,7 @@ export async function aiComplete(cfg: ResolvedAI, opts: CallOpts): Promise<strin
           const fMs = Date.now() - fStart;
           cumMs += fMs;
           logger.info(
-            { ai: 'call', provider: fb.provider, model: fb.model, upstreamModel: r.upstreamModel, caller: tag, ms: fMs, fallback: true },
+            { ai: 'call', provider: fb.provider, model: fb.model, upstreamModel: r.upstreamModel, routedComplexity: r.complexity, routedProvider: r.routedProvider, realtimeSources: (r.realtimeSources || []).length, caller: tag, ms: fMs, fallback: true },
             `AI ok (fallback) → ${fb.provider}/${fb.model} • ${fMs}ms • ${tag}`,
           );
           pushCall({
@@ -328,7 +359,7 @@ export async function aiComplete(cfg: ResolvedAI, opts: CallOpts): Promise<strin
             ms: cumMs,
             ok: true,
             fallback: { provider: fb.provider, model: fb.model },
-            upstreamModel: r.upstreamModel,
+            upstreamModel: r.upstreamModel, routedComplexity: r.complexity, routedProvider: r.routedProvider, realtimeSources: (r.realtimeSources || []).length,
             promptChars: (opts.systemPrompt?.length ?? 0) + opts.prompt.length,
             responseChars: r.text.length,
           });
