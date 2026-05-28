@@ -120,7 +120,18 @@ JSON shape:
   "risks": string[],               // 3-5 bullets
   "analyst_view": string           // 1-line consensus from top brokerages, if known
 }`;
-  const raw = await aiComplete(cfg, { prompt, json: true, temperature: 0.3, timeoutMs: 30_000, callerTag: 'ipo' });
+  // FP-1.20: IPO data changes daily (subscription %, GMP, listing dates). Always
+  // pull live web context via Tavily — the AI's training data is stale by months.
+  const raw = await aiComplete(cfg, {
+    prompt,
+    json: true,
+    temperature: 0.3,
+    timeoutMs: 45_000,
+    callerTag: 'ipo',
+    realtime: true,
+    preferProvider: 'groq',
+    avoidProviders: ['pollinations'],
+  });
   let j: any = {};
   try { j = JSON.parse(raw); } catch { const m = /\{[\s\S]*\}/.exec(raw); if (m) j = JSON.parse(m[0]); }
   return {

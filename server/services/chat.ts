@@ -251,7 +251,17 @@ export async function sendMessage(userId: number, sessionId: number | null, cont
   const prompt = `${transcript}${ctxBlock}\n\nAssistant:`;
 
   const aiCfg = resolveAIConfig(userId);
-  const reply = await aiComplete(aiCfg, { prompt, systemPrompt: SYSTEM_PROMPT, temperature: 0.5, callerTag: 'chat' });
+  // FP-1.20: detect time-sensitive queries and opt in to Arbiter Tavily search.
+  // Keyword heuristic mirrors app/services/web_search.py looks_time_sensitive().
+  const _rt = /\b(today|now|current(ly)?|latest|just now|right now|breaking|live|real[- ]?time|price|quote|news|update|trending|happening|this (week|month|year)|tomorrow|yesterday)\b/i;
+  const wantsRealtime = _rt.test(prompt);
+  const reply = await aiComplete(aiCfg, {
+    prompt,
+    systemPrompt: SYSTEM_PROMPT,
+    temperature: 0.5,
+    callerTag: 'chat',
+    realtime: wantsRealtime,
+  });
   db.prepare('INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)').run(sid, 'assistant', reply);
   return { sessionId: sid, reply };
 }

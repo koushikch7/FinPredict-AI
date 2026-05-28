@@ -95,7 +95,35 @@ async function analyseBatch(snaps: MiniSnapshot[], cfg: ResolvedAI): Promise<AIV
 Return ONLY JSON: { "verdicts": [ { "symbol": string, "score": number, "direction": "BUY"|"HOLD"|"AVOID", "horizon": "Intraday"|"Short-term"|"Long-term", "expected_upside_pct": number, "risk_level": "Low"|"Medium"|"High", "rationale": string, "strategy": string } ] }
 Be calibrated: do NOT recommend BUY for everything. Treat penny/micro-caps with extra risk weighting. Score must reflect signal-to-noise.`;
   const prompt = `Snapshots:\n${JSON.stringify(snaps, null, 2)}`;
-  const raw = await aiComplete(cfg, { prompt, systemPrompt: system, json: true, temperature: 0.3, timeoutMs: 90_000, callerTag: 'discovery' });
+  // FP-1.20: Discovery uses strict-JSON providers (groq/nvidia honor json_object cleanly).
+  // Avoid pollinations and cloudflare which truncate JSON mid-array on the verdicts batch.
+  // Retry once with temperature 0 + nvidia preference if the first parse fails — minimises
+  // the ~17%% "batch failed" error rate we were seeing.
+  const baseOpts = {
+    prompt,
+    systemPrompt: system,
+    json: true as const,
+    temperature: 0.3,
+    timeoutMs: 60_000,
+    callerTag: 'discovery' as const,
+    preferProvider: 'groq',
+    avoidProviders: ['pollinations', 'huggingface'],
+  };
+  let raw = await aiComplete(cfg, baseOpts);
+  // Light parse-probe: if not valid JSON, retry once with stricter settings.
+  const looksValid = (s: string) => {
+    const t = s.trim();
+    if (!t.startsWith('{')) return false;
+    try { JSON.parse(t); return true; } catch { return /\}\s*$/.test(t); }
+  };
+  if (!looksValid(raw)) {
+    raw = await aiComplete(cfg, {
+      ...baseOpts,
+      temperature: 0,
+      preferProvider: 'nvidia',
+      timeoutMs: 75_000,
+    });
+  }
   let j: any = {};
   try { j = JSON.parse(raw); } catch { const m = /\{[\s\S]*\}/.exec(raw); if (m) j = JSON.parse(m[0]); }
   const out: AIVerdict[] = Array.isArray(j.verdicts) ? j.verdicts : [];
