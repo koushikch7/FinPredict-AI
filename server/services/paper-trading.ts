@@ -133,6 +133,62 @@ function tieredTrailGiveback(peakGainPct: number): number | null {
   return Math.max(8, peakGainPct * 0.25);
 }
 
+
+
+/**
+ * FP-1.20.1: programmatic sector concentration cap (the AI prompt already
+ * mentions "30 percent per sector" but we now ENFORCE it server-side so
+ * the AI can't accidentally pile into one sector during a hot streak).
+ */
+function sectorExposurePct(accountId: number, sectorName: string, totalEquity: number, addNotional: number): number {
+  if (!sectorName || !totalEquity) return 0;
+  const row = db.prepare(
+    `SELECT COALESCE(SUM(p.quantity * COALESCE(p.last_price, p.average_price)), 0) AS notional
+       FROM paper_positions p JOIN stocks s ON p.stock_id = s.id
+      WHERE p.account_id = ? AND s.sector = ?`,
+  ).get(accountId, sectorName) as { notional: number };
+  return ((row.notional + addNotional) / totalEquity) * 100;
+}
+
+/**
+ * FP-1.20.1: liquidity floor — average daily turnover over last 20 sessions.
+ * Returns null when we have no price history (treat as "unknown — be careful").
+ */
+function avgDailyTurnover20d(stockId: number): number | null {
+  const row = db.prepare(
+    `SELECT AVG(close * volume) AS tov, COUNT(*) AS n
+       FROM stock_prices
+      WHERE stock_id = ? AND date >= date('now','-30 days')`,
+  ).get(stockId) as { tov: number | null; n: number };
+  if (!row.tov || row.n < 5) return null;
+  return row.tov;
+}
+
+const LIQUIDITY_FLOOR_INR = 2_00_00_000; // 2 crore — bare minimum for paper-trading; real money should be 5cr+
+
+/**
+ * FP-1.20.1: intraday horizon eligibility — only run intraday on liquid
+ * mid+ tier names during regular NSE hours with enough time left in the
+ * session to enter + exit before 3:25 PM IST.
+ */
+function isIntradayEligible(tier: string | null, now = new Date()): { ok: boolean; reason?: string } {
+  if (!tier || !['large', 'mid'].includes(tier)) {
+    return { ok: false, reason: `intraday requires tier large|mid, got ${tier}` };
+  }
+  // IST = UTC + 5:30
+  const istMs = now.getTime() + 5.5 * 3600 * 1000;
+  const ist = new Date(istMs);
+  const hh = ist.getUTCHours();
+  const mm = ist.getUTCMinutes();
+  // Market: 09:15 - 15:30 IST. Allow new intraday entries up to 14:30 IST
+  // so there's time for at least a 1-hour move + 25 min square-off buffer.
+  const t = hh * 100 + mm;
+  if (t < 915 || t > 1430) {
+    return { ok: false, reason: `intraday window 09:15-14:30 IST (currently ${hh}:${String(mm).padStart(2, '0')} IST)` };
+  }
+  return { ok: true };
+}
+
 const MIN_CONVICTION_BUY = 0.70;      // Only buy with high conviction
 const MIN_CONVICTION_SELL = 0.50;     // Lower bar for sells (capital preservation)
 const MAX_BUYS_PER_CYCLE = 3;         // Quality over quantity
@@ -173,7 +229,10 @@ export function getOrCreateAccount(userId: number, startingCapital = 100_000): P
   db.prepare(
     `INSERT INTO paper_accounts (user_id, starting_capital, cash, universe)
      VALUES (?, ?, ?, ?)`,
-  ).run(userId, startingCapital, startingCapital, JSON.stringify(DEFAULT_UNIVERSE));
+  // FP-1.20.1: new accounts default to AUTO universe so the AI uses the
+  // full discovery output + watchlist + tier-stratified sample, not just
+  // the 10 fixed blue-chips that DEFAULT_UNIVERSE used to lock you into.
+  ).run(userId, startingCapital, startingCapital, null);
   return db.prepare('SELECT * FROM paper_accounts WHERE user_id = ?').get(userId) as PaperAccount;
 }
 
@@ -615,6 +674,42 @@ export async function runAITraderCycle(
     logger.info({ accountId: acc.id, ddPct: rolling.ddPct }, 'Rolling drawdown >=8% — halving position sizes');
   }
 
+  // ── FP-1.20.1: Intraday force-close at 3:25 PM IST ──
+  // Any open position tagged "intraday" must be flat by end-of-session.
+  // This protects against overnight gap risk on what was meant to be a
+  // same-day trade.
+  {
+    const istMs = Date.now() + 5.5 * 3600 * 1000;
+    const ist = new Date(istMs);
+    const t = ist.getUTCHours() * 100 + ist.getUTCMinutes();
+    if (t >= 1525 && t <= 1559) {
+      const intradayOpen = db.prepare(
+        `SELECT p.*, s.symbol FROM paper_positions p
+           JOIN paper_trades t ON t.account_id = p.account_id AND t.stock_id = p.stock_id AND t.side = 'BUY'
+           JOIN stocks s ON s.id = p.stock_id
+          WHERE p.account_id = ? AND p.quantity > 0 AND t.horizon = 'Intraday'
+          GROUP BY p.id`,
+      ).all(acc.id) as Array<{ stock_id: number; symbol: string; quantity: number; average_price: number }>;
+      for (const p of intradayOpen) {
+        const q = await fetchYahooQuote(p.symbol, 'NSE');
+        const ltp = q?.price ?? p.average_price;
+        try {
+          executeTrade({
+            accountId: acc.id,
+            stockId: p.stock_id,
+            side: 'SELL',
+            quantity: p.quantity,
+            price: ltp,
+            reason: 'Intraday force-close at 3:25 PM IST',
+            ai: true,
+            strategy_tag: 'risk:intraday-eod',
+            market_regime: 'EOD',
+          });
+        } catch {}
+      }
+    }
+  }
+
   // ── Stop-loss / trailing-stop / take-profit pre-pass ──
   const regimeInfo = detectMarketRegime(positions.map((p) => p.symbol).slice(0, 12));
   const forced: Array<{ symbol: string; reason: string }> = [];
@@ -675,15 +770,53 @@ export async function runAITraderCycle(
   let universeMode: 'custom' | 'auto' = 'custom';
   if (!universe || universe.length === 0) {
     universeMode = 'auto';
-    const buys = topBuyPicks(15);
+    // FP-1.20.1: stratified 50-symbol auto-universe so the AI has real
+    // cross-cap optionality every cycle rather than churning the same 10
+    // blue-chips. Composition (best-effort, dedup'd, cap = 50):
+    //   * 20 highest-scoring BUY picks from Discovery (all tiers)
+    //   * user watchlist symbols + currently-held positions (always in)
+    //   * 8 large + 8 mid + 6 small + 4 micro + 2 penny (random per cycle)
+    //   * 4 ETFs (for hedge / diversification)
+    //   * 6 fresh symbols from sectors NOT yet covered above
+    const buys = topBuyPicks(20);
     const watch = (db
       .prepare(
         `SELECT s.symbol FROM watchlist w JOIN stocks s ON w.stock_id = s.id WHERE w.user_id = ?`,
       )
       .all(userId) as { symbol: string }[]).map((r) => r.symbol);
     const held = positions.map((p) => p.symbol);
-    const merged = [...new Set([...buys, ...watch, ...held])];
-    universe = merged.length > 0 ? merged.slice(0, 18) : DEFAULT_UNIVERSE;
+
+    const sampleByTier = (tier: string, n: number): string[] =>
+      (db
+        .prepare(
+          `SELECT symbol FROM stocks WHERE tier = ? ORDER BY RANDOM() LIMIT ?`,
+        )
+        .all(tier, n) as { symbol: string }[]).map((r) => r.symbol);
+
+    const tiered = [
+      ...sampleByTier('large', 8),
+      ...sampleByTier('mid', 8),
+      ...sampleByTier('small', 6),
+      ...sampleByTier('micro', 4),
+      ...sampleByTier('penny', 2),
+      ...sampleByTier('etf', 4),
+    ];
+
+    // Fresh symbols from under-covered sectors.
+    const covered = new Set([...buys, ...watch, ...held, ...tiered]);
+    const coveredSectors = new Set(
+      (db.prepare(
+        `SELECT DISTINCT sector FROM stocks WHERE symbol IN (${[...covered].map(() => '?').join(',') || "''"})`,
+      ).all(...[...covered]) as { sector: string }[]).map((r) => r.sector),
+    );
+    const freshSectors = (db
+      .prepare(
+        `SELECT s.symbol FROM stocks s WHERE s.sector NOT IN (${[...coveredSectors].map(() => '?').join(',') || "''"}) ORDER BY RANDOM() LIMIT 6`,
+      )
+      .all(...[...coveredSectors]) as { symbol: string }[]).map((r) => r.symbol);
+
+    const merged = [...new Set([...held, ...watch, ...buys, ...tiered, ...freshSectors])];
+    universe = merged.length > 0 ? merged.slice(0, 50) : DEFAULT_UNIVERSE;
   }
 
   // ── Anti-fixation: figure out which symbols the AI has already bought recently ──
@@ -713,7 +846,8 @@ export async function runAITraderCycle(
 
   // Compact context per symbol (technicals + 30d candles + per-symbol news headlines)
   const ctxs: Record<string, any> = {};
-  const ctxSymbols = universe.slice(0, 12);
+  // FP-1.20.1: ctxSymbols expanded 12 -> 30 to match larger universe.
+  const ctxSymbols = universe.slice(0, 30);
   await Promise.all(
     ctxSymbols.map(async (sym) => {
       try { ctxs[sym] = await buildContext(sym, 'NSE'); } catch {}
@@ -803,7 +937,14 @@ DISCIPLINE RULES (NON-NEGOTIABLE):
 6. POSITION SIZING: Riskier setups get smaller positions. High-conviction with multiple confirming signals → larger.
 7. SECTOR DIVERSIFICATION: No more than 30% of portfolio in one sector.
 8. HOLD BIAS: When in doubt, HOLD. Transaction costs eat profits. Do NOT churn.
-9. NO INTRADAY: All trades must have horizon "Short-term" (days-weeks) or "Long-term" (months+). No intraday speculation.
+9. HORIZON DISCIPLINE — pick the right one for the setup:
+   * Intraday — same-day entry/exit. ALLOWED only when:
+       - stock tier is large or mid (liquid),
+       - clear catalyst within the next 1-3 hours,
+       - tight 1-2% stop, tight 1.5-3% target,
+       - position MUST be closed by 3:25 PM IST or the system will square it off automatically.
+   * Short-term — days to weeks. RSI/MACD/breakout/news catalyst plays.
+   * Long-term — months. Fundamentals, sector tailwind, dividend, multi-quarter thesis.
 10. RISK MANAGEMENT: Every BUY must specify where the stop-loss should be (in the reason field).
 
 Hard constraints:
@@ -812,11 +953,11 @@ Hard constraints:
 - SELL only what is currently held.
 - Position-size cap ₹${maxPosNotional.toFixed(0)} per single stock (max ${accAfter.max_position_pct}% of total equity).
 - DO NOT BUY any of these symbols this cycle (recently bought, anti-fixation): ${blockedFromBuy.length ? blockedFromBuy.join(', ') : 'none'}.
-- Each BUY must include horizon: "Short-term" or "Long-term".
+- Each BUY must include horizon: "Intraday", "Short-term", or "Long-term" (Intraday only on liquid large/mid names).
 - Each decision must tag a strategy_tag: momentum, mean-reversion, breakout, value, swing, defensive, news-driven.
 - LEARN FROM HISTORY: Review the past strategy P&L below. AVOID strategies that have lost money. FAVOR strategies that have been profitable.
 
-Respond ONLY as JSON: { "decisions": [ { "symbol": string, "side": "BUY"|"SELL"|"HOLD", "quantity": number, "reason": string (include stop-loss level and target price), "horizon": "Short-term"|"Long-term", "strategy_tag": string, "conviction": number /* 0..1, BUY needs ≥${MIN_CONVICTION_BUY} */ } ] }
+Respond ONLY as JSON: { "decisions": [ { "symbol": string, "side": "BUY"|"SELL"|"HOLD", "quantity": number, "reason": string (include stop-loss level and target price), "horizon": "Intraday"|"Short-term"|"Long-term", "strategy_tag": string, "conviction": number /* 0..1, BUY needs ≥${MIN_CONVICTION_BUY} */ } ] }
 If no good setups exist, return: { "decisions": [] }`;
 
   const prompt = `Cash: ₹${accAfter.cash.toFixed(2)}
@@ -860,7 +1001,7 @@ ${JSON.stringify(ctxs).slice(0, 12_000)}`;
   }
 
   // ── Phase 5: Turbulence Index — adjust position sizing in volatile markets ──
-  const turbulence = computeTurbulence(universe.slice(0, 15));
+  const turbulence = computeTurbulence(universe.slice(0, 25));
   if (turbulence.level === 'Extreme') {
     logger.warn({ turbulence: turbulence.turbulence }, 'AI trader: EXTREME turbulence — blocking new buys');
   }
@@ -966,11 +1107,9 @@ ${JSON.stringify(ctxs).slice(0, 12_000)}`;
       continue;
     }
 
-    // ── REJECT INTRADAY ──
-    if (d.horizon === 'Intraday') {
-      errors.push(`Skipped ${d.side} ${d.symbol}: Intraday horizon not allowed (use Short-term or Long-term)`);
-      continue;
-    }
+    // FP-1.20.1: Intraday is now ALLOWED (gated above by isIntradayEligible
+    // for BUY, and tagged on SELL so the auto force-close pass can run it
+    // at 3:25 PM IST). High-frequency / day-trade strategies belong here.
 
     const stock = db.prepare('SELECT * FROM stocks WHERE symbol = ?').get(d.symbol) as any;
     if (!stock) {
@@ -1006,6 +1145,27 @@ ${JSON.stringify(ctxs).slice(0, 12_000)}`;
         if (qty <= 0) {
           errors.push(`Skipped BUY ${d.symbol}: position-cap or cash limit (max ${maxQty})`);
           continue;
+        }
+
+        // ── FP-1.20.1: Programmatic sector cap (was prompt-only before) ──
+        const stockSector = (stock as any).sector || null;
+        const sectorPctAfter = sectorExposurePct(acc.id, stockSector, totalEquityHint, qty * q.price);
+        if (stockSector && sectorPctAfter > 30) {
+          errors.push(`Skipped BUY ${d.symbol}: sector ${stockSector} would be ${sectorPctAfter.toFixed(1)}% (cap 30%)`);
+          continue;
+        }
+
+        // ── FP-1.20.1: Liquidity floor — kills bad-slippage penny fills ──
+        const tov = avgDailyTurnover20d(stock.id);
+        if (tov !== null && tov < LIQUIDITY_FLOOR_INR) {
+          errors.push(`Skipped BUY ${d.symbol}: 20-day avg turnover ₹${(tov / 1e7).toFixed(2)}cr < ₹${(LIQUIDITY_FLOOR_INR / 1e7).toFixed(0)}cr liquidity floor`);
+          continue;
+        }
+
+        // ── FP-1.20.1: Intraday eligibility ──
+        if (d.horizon === 'Intraday') {
+          const e = isIntradayEligible((stock as any).tier);
+          if (!e.ok) { errors.push(`Skipped intraday BUY ${d.symbol}: ${e.reason}`); continue; }
         }
 
         // ── BREAK-EVEN CHECK: ensure expected return justifies costs ──

@@ -364,4 +364,22 @@ export function runMigrations(): void {
   for (const s of SEED_STOCKS) seedStock.run(s.symbol, s.name, s.sector, 'NSE', s.tier);
 
   logger.info({ stockCount: SEED_STOCKS.length }, 'Database migrations applied');
+
+  // ────────────────────────────────────────────────────────────────────────
+  // FP-1.20.1-universe-unlock: clear stale 10-blue-chip universes so accounts
+  // switch to AUTO mode and benefit from the stratified 50-symbol builder.
+  // The old code stored DEFAULT_UNIVERSE = ['RELIANCE','TCS','INFY',...] at
+  // account creation, permanently sticky. This one-shot migration nulls the
+  // column when it exactly matches that legacy default.
+  // ────────────────────────────────────────────────────────────────────────
+  try {
+    const OLD_DEFAULT = JSON.stringify(['RELIANCE','TCS','INFY','HDFCBANK','ICICIBANK','ITC','SBIN','LT','BHARTIARTL','MARUTI']);
+    const r = db.prepare('UPDATE paper_accounts SET universe = NULL WHERE universe = ?').run(OLD_DEFAULT);
+    if (r.changes > 0) {
+      console.log(`[migration] FP-1.20.1-universe-unlock: switched ${r.changes} account(s) to AUTO universe`);
+    }
+  } catch (e) {
+    console.warn('[migration] FP-1.20.1-universe-unlock skipped:', (e as Error).message);
+  }
+
 }
