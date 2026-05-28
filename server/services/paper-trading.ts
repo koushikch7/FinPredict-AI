@@ -56,6 +56,83 @@ function minimumBreakevenPct(buyPrice: number, quantity: number): number {
 }
 
 // Trading quality thresholds
+
+
+/**
+ * FP-1.20.1: 5-day rolling peak-to-trough drawdown.
+ * Returns the percentage drop from the highest equity in the trailing
+ * window. Used as a soft circuit breaker that throttles or blocks new
+ * BUYs when the account is in a sustained drawdown — even if today
+ * alone hasn't tripped the daily kill-switch.
+ */
+function computeRollingDrawdown(accountId: number, windowDays = 5): { peak: number; current: number; ddPct: number } {
+  const row = db
+    .prepare(
+      `SELECT MAX(total) AS peak FROM paper_equity_curve
+       WHERE account_id = ? AND timestamp >= datetime('now', ?)`,
+    )
+    .get(accountId, `-${windowDays} days`) as { peak: number | null } | undefined;
+  const peak = row?.peak ?? 0;
+  const cur = db.prepare(
+    'SELECT total FROM paper_equity_curve WHERE account_id = ? ORDER BY id DESC LIMIT 1',
+  ).get(accountId) as { total: number } | undefined;
+  const current = cur?.total ?? 0;
+  if (!peak || !current) return { peak, current, ddPct: 0 };
+  return { peak, current, ddPct: ((current - peak) / peak) * 100 };
+}
+
+/**
+ * FP-1.20.1: Kelly-criterion-inspired position-sizing multiplier.
+ * Input: strategy_pnl rows for this account (already filtered to SELLs with
+ * realized P&L). Output: a multiplier in [0.3, 1.5] that scales the AI's
+ * suggested quantity based on the historical edge of the strategy_tag.
+ *
+ * f* = (b·p - q) / b, where:
+ *   p = win rate, q = 1-p, b = avg_win/avg_loss
+ * We then clip to [0.3, 1.5] so a single hot streak can't 5x sizes and a
+ * bad streak can't shrink to zero (already handled by drawdown breaker).
+ */
+function kellySizingFactor(
+  stats: Array<{ strategy_tag: string; win_rate_pct: number; trades: number; avg_pnl: number }>,
+  strategyTag: string,
+  conviction: number,
+): number {
+  if (!strategyTag) return 1.0;
+  const stat = stats.find((s) => s.strategy_tag === strategyTag);
+  if (!stat || stat.trades < 5) return 1.0; // not enough data — use AI's call
+
+  const p = stat.win_rate_pct / 100;
+  if (p <= 0 || p >= 1) return 1.0;
+  // Use signed avg_pnl as proxy for net edge — if it's negative, throttle hard
+  if (stat.avg_pnl <= 0) return 0.4;
+
+  // Without separate win/loss size, approximate b ≈ 1 + (avg_pnl / 1000) so
+  // strategies with bigger absolute wins get a small boost. This is a
+  // conservative approximation; over time we can split by sign of pnl.
+  const b = 1 + Math.min(2, Math.max(0.2, Math.abs(stat.avg_pnl) / 1000));
+  const q = 1 - p;
+  let f = (b * p - q) / b;
+  // Conviction tempers the edge: scale by conviction (0..1).
+  f = f * Math.max(0.5, conviction);
+  // Clip
+  return Math.max(0.3, Math.min(1.5, 1 + f));
+}
+
+/**
+ * FP-1.20.1: Tiered trailing-stop give-back.
+ * Tighter trail as profits grow — once you have real gains, protect them.
+ *   0-5%:   no trail (just stop_loss_pct hard floor)
+ *   5-15%:  50% give-back from peak
+ *   15-30%: 35% give-back
+ *   >30%:   25% give-back
+ */
+function tieredTrailGiveback(peakGainPct: number): number | null {
+  if (peakGainPct < 5) return null;
+  if (peakGainPct < 15) return Math.max(2, peakGainPct * 0.50);
+  if (peakGainPct < 30) return Math.max(4, peakGainPct * 0.35);
+  return Math.max(8, peakGainPct * 0.25);
+}
+
 const MIN_CONVICTION_BUY = 0.70;      // Only buy with high conviction
 const MIN_CONVICTION_SELL = 0.50;     // Lower bar for sells (capital preservation)
 const MAX_BUYS_PER_CYCLE = 3;         // Quality over quantity
@@ -525,6 +602,19 @@ export async function runAITraderCycle(
     }
   }
 
+  // ── FP-1.20.1: 5-day rolling drawdown circuit breaker ────────────────
+  // Different from the daily kill-switch above: this looks at the rolling
+  // 5-day peak so a slow grind down isn't masked by per-day jitter.
+  const rolling = computeRollingDrawdown(acc.id, 5);
+  let rollingDdMode: 'normal' | 'reduce' | 'block' = 'normal';
+  if (rolling.ddPct <= -12) {
+    rollingDdMode = 'block';
+    logger.warn({ accountId: acc.id, ddPct: rolling.ddPct, peak: rolling.peak }, 'Rolling drawdown >=12% — blocking all new BUYs');
+  } else if (rolling.ddPct <= -8) {
+    rollingDdMode = 'reduce';
+    logger.info({ accountId: acc.id, ddPct: rolling.ddPct }, 'Rolling drawdown >=8% — halving position sizes');
+  }
+
   // ── Stop-loss / trailing-stop / take-profit pre-pass ──
   const regimeInfo = detectMarketRegime(positions.map((p) => p.symbol).slice(0, 12));
   const forced: Array<{ symbol: string; reason: string }> = [];
@@ -545,10 +635,13 @@ export async function runAITraderCycle(
     const peakGain = ((entryPeak - p.average_price) / p.average_price) * 100;
     const drawdownFromPeak = ((entryPeak - ltp) / entryPeak) * 100;
 
-    if (peakGain > 5 && drawdownFromPeak >= TRAILING_STOP_PCT) {
+    // FP-1.20.1: tiered trailing-stop give-back replaces the fixed 4% trail.
+    // Tighter trail as profits grow so big winners aren't given back.
+    const tieredGB = tieredTrailGiveback(peakGain);
+    if (tieredGB !== null && drawdownFromPeak >= tieredGB) {
       // Trailing stop triggered — lock in some profit
       try {
-        executeTrade({ accountId: acc.id, stockId: p.stock_id, side: 'SELL', quantity: p.quantity, price: ltp, reason: `Trailing stop: was +${peakGain.toFixed(1)}%, pullback ${drawdownFromPeak.toFixed(1)}% from peak`, ai: true, strategy_tag: 'risk:trailing-stop', market_regime: regimeInfo.regime });
+        executeTrade({ accountId: acc.id, stockId: p.stock_id, side: 'SELL', quantity: p.quantity, price: ltp, reason: `Trailing stop (tier @ ${tieredGB.toFixed(1)}%): was +${peakGain.toFixed(1)}%, pullback ${drawdownFromPeak.toFixed(1)}% from peak`, ai: true, strategy_tag: 'risk:trailing-stop', market_regime: regimeInfo.regime });
         forced.push({ symbol: p.symbol, reason: `Trailing stop (peak +${peakGain.toFixed(1)}%, now +${pnlPct.toFixed(1)}%)` });
       } catch {}
     } else if (pnlPct <= -acc.stop_loss_pct) {
@@ -841,6 +934,20 @@ ${JSON.stringify(ctxs).slice(0, 12_000)}`;
       continue;
     }
 
+    // ── FP-1.20.1: News-sentiment veto on BUY ──
+    // If FinBERT 7-day average is firmly negative, only let through
+    // exceptional-conviction BUYs (>=0.85). Prevents AI from catching falling knives.
+    if (d.side === 'BUY' && symSentiment && symSentiment.avgScore <= -0.30 && conviction < 0.85) {
+      errors.push(`Skipped BUY ${d.symbol}: negative news sentiment ${symSentiment.avgScore.toFixed(2)} requires conviction>=0.85 (got ${conviction.toFixed(2)})`);
+      continue;
+    }
+
+    // ── FP-1.20.1: Rolling-drawdown circuit breaker on BUY ──
+    if (d.side === 'BUY' && rollingDdMode === 'block') {
+      errors.push(`Skipped BUY ${d.symbol}: rolling 5-day drawdown ${rolling.ddPct.toFixed(2)}% blocks new positions`);
+      continue;
+    }
+
     // ── Phase 5: TURBULENCE — block buys in extreme conditions, halve in elevated ──
     if (d.side === 'BUY' && turbulence.level === 'Extreme') {
       errors.push(`Skipped BUY ${d.symbol}: EXTREME market turbulence (${turbulence.turbulence.toFixed(2)})`);
@@ -889,7 +996,11 @@ ${JSON.stringify(ctxs).slice(0, 12_000)}`;
         const headroom = Math.max(0, maxPosNotional - existingNotional);
         const cashLimit = accAfter.cash * 0.95;
         // Phase 5: Apply turbulence multiplier to reduce position size in volatile markets
-        const turbulenceAdjusted = Math.min(headroom, cashLimit) * turbulence.positionMultiplier;
+        // FP-1.20.1: Combine turbulence (volatility) + Kelly (edge) + rolling-DD (capital preservation)
+        const kelly = kellySizingFactor(strategyStats, tag, finalConviction);
+        const rollingMul = rollingDdMode === 'reduce' ? 0.5 : 1.0;
+        const sizingMultiplier = turbulence.positionMultiplier * kelly * rollingMul;
+        const turbulenceAdjusted = Math.min(headroom, cashLimit) * sizingMultiplier;
         const maxQty = Math.floor(turbulenceAdjusted / q.price);
         const qty = Math.max(0, Math.min(Math.floor(d.quantity), maxQty));
         if (qty <= 0) {
