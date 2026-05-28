@@ -22,11 +22,15 @@ services:
     volumes:
       - finpredict-data:/app/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      # FP-1.20.1: wget connect-timeout 8 s + retry buffer for tsx JIT and
+      # better-sqlite3 sync calls that briefly stall the event loop during
+      # cron-driven discovery scans (was reporting unhealthy though the
+      # /api/health endpoint was actually responding).
+      test: ["CMD", "wget", "-q", "-T", "8", "-O-", "http://127.0.0.1:3000/api/health"]
       interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+      timeout: 15s
+      retries: 6
+      start_period: 30s
 
 volumes:
   finpredict-data:
