@@ -3,6 +3,30 @@
 All notable changes to FinPredict-AI are recorded here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+---
+
+## [1.6.1] — 2026-06-02
+
+Hotfix release. Three production bugs discovered via log analysis of the live deployment.
+
+### Fixed
+
+- **Yahoo Finance User-Agent blocked** (`server/services/prices.ts`) — The custom `Mozilla/5.0 FinPredict` User-Agent was being rate-limited/timed out by Yahoo Finance from inside the Docker container (HTTP 429 from host, TCP timeout from container). Changed to a standard Chrome browser User-Agent. All stock quote and history fetches now succeed. This was the root cause of the playground being slow and manual trades failing.
+
+- **Manual trade / quote broken when Yahoo unavailable** (`server/routes/playground.ts`) — `GET /api/playground/quote/:symbol` and `POST /api/playground/trade` threw `"Could not fetch live price"` hard errors whenever Yahoo Finance was unreachable, making it impossible to place any manual trade. Both endpoints now fall back to the last cached price in the database (`latestPrice(stock.id)`) when Yahoo returns `null`. Response includes `{ stale: true }` / `{ price_source: "cached" }` so the UI can surface a stale-price warning. A hard error is only thrown when both Yahoo and the DB cache return nothing.
+
+- **Gemini fallback using invalid model `"auto"`** (`server/services/ai.ts`) — `DEFAULT_AI_MODEL=auto` in `.env` is correct for the Arbiter/OpenAI gateway (which supports model routing via `"auto"`), but the Gemini SDK does not recognise `"auto"` as a model ID and returns an immediate 404. When Arbiter timed out (up to 60 s), the fallback chain tried `Gemini/auto`, got a 404, and the entire AI cycle failed with no recovery. `resolveFallbackChain()` now substitutes `gemini-2.5-flash` whenever the configured model is `"auto"` and the fallback provider is Gemini. Confirmed working: Gemini now successfully handles requests when Arbiter is slow.
+
+### Notes
+
+- No database migrations required.
+- No breaking changes to the API or frontend.
+- All three fixes are deployed via Docker image rebuild (`docker compose up --build -d`).
+
+---
+
+
 - CSV portfolio import for non-Kite brokers
 - WebSocket live ticks (Kite)
 - Code-splitting to drop main bundle below 250 kB gzip
