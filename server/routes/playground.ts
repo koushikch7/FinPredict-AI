@@ -17,7 +17,7 @@ import {
   detectMarketRegime,
   getStrategyStats,
 } from '../services/paper-trading.js';
-import { fetchYahooQuote } from '../services/prices.js';
+import { fetchYahooQuote, latestPrice } from '../services/prices.js';
 import { brokerStore } from '../services/brokers/types.js';
 import { badRequest } from '../utils/errors.js';
 import { isNseOpen } from '../utils/market-hours.js';
@@ -173,12 +173,13 @@ playgroundRouter.post(
     const stock = db.prepare('SELECT * FROM stocks WHERE symbol = ?').get(symbol.toUpperCase()) as any;
     if (!stock) throw badRequest('Unknown symbol');
     const q = await fetchYahooQuote(stock.symbol, stock.exchange);
-    if (!q) throw badRequest('Could not fetch live price');
+    const livePrice = q?.price ?? latestPrice(stock.id);
+    if (!livePrice) throw badRequest('Could not fetch live price — Yahoo is unavailable and no cached price exists');
     const acc = getOrCreateAccount(req.user!.id);
     // Defence-in-depth: even though executeTrade rejects insufficient cash,
     // surface a friendlier error here for the manual trade UX.
     if (side === 'BUY') {
-      const need = q.price * quantity * 1.001;
+      const need = livePrice * quantity * 1.001;
       if (need > acc.cash) {
         throw badRequest(`Insufficient cash: need ₹${need.toFixed(2)}, available ₹${acc.cash.toFixed(2)}`);
       }
@@ -189,14 +190,14 @@ playgroundRouter.post(
       stockId: stock.id,
       side,
       quantity,
-      price: q.price,
+      price: livePrice,
       reason: reason ?? 'manual',
       horizon,
       strategy_tag: strategy_tag ?? 'manual',
       market_regime: regime,
     });
     await recomputeEquity(acc.id);
-    res.json({ ok: true, executed_price: q.price });
+    res.json({ ok: true, executed_price: livePrice, price_source: q ? 'live' : 'cached' });
   }),
 );
 
@@ -213,8 +214,9 @@ playgroundRouter.get(
     const stock = db.prepare('SELECT * FROM stocks WHERE symbol = ?').get(sym) as any;
     if (!stock) throw badRequest('Unknown symbol');
     const q = await fetchYahooQuote(stock.symbol, stock.exchange);
-    if (!q) throw badRequest('Could not fetch live price');
-    res.json({ symbol: sym, price: q.price, exchange: stock.exchange });
+    const quotePrice = q?.price ?? latestPrice(stock.id);
+    if (!quotePrice) throw badRequest('Could not fetch live price — Yahoo is unavailable and no cached price exists');
+    res.json({ symbol: sym, price: quotePrice, exchange: stock.exchange, stale: !q });
   }),
 );
 

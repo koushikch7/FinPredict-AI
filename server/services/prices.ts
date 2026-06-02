@@ -29,7 +29,7 @@ export async function fetchYahooQuote(symbol: string, exchange = 'NSE'): Promise
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=2d`;
     const { data } = await axios.get(url, {
       timeout: 8000,
-      headers: { 'User-Agent': 'Mozilla/5.0 FinPredict' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' },
     });
     const meta = data?.chart?.result?.[0]?.meta;
     if (!meta || meta.regularMarketPrice == null) return null;
@@ -75,7 +75,7 @@ export async function fetchYahooHistory(
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?period1=${period1}&period2=${period2}&interval=1d`;
     const { data } = await axios.get(url, {
       timeout: 10_000,
-      headers: { 'User-Agent': 'Mozilla/5.0 FinPredict' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' },
     });
     const r = data?.chart?.result?.[0];
     if (!r) return [];

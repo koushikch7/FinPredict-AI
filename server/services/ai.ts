@@ -146,10 +146,13 @@ function resolveFallbackChain(primary: ResolvedAI): ResolvedAI[] {
   }
   const gemKey = configStore.get('GEMINI_API_KEY') || config.GEMINI_API_KEY;
   if (gemKey && primary.provider !== 'Gemini') {
+    // 'auto' is only valid for Arbiter/OpenAI gateway routing, not for the Gemini SDK directly.
+    const configModel = configStore.get('DEFAULT_AI_MODEL') || config.DEFAULT_AI_MODEL;
+    const geminiModel = (!configModel || configModel === 'auto') ? 'gemini-2.5-flash' : configModel;
     chain.push({
       provider: 'Gemini',
       apiKey: gemKey,
-      model: configStore.get('DEFAULT_AI_MODEL') || config.DEFAULT_AI_MODEL || 'gemini-2.5-flash',
+      model: geminiModel,
       source: 'env',
     });
   }
