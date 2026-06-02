@@ -1,6 +1,90 @@
-# Changelog
+# Changelog — FinPredict AI
 
-All notable changes to FinPredict-AI are recorded here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
+> **This file is the single source of truth** for both human release notes and AI session context.
+> Any AI assistant picking up work on this codebase should read the **Project Context** section
+> below for current architecture, then scan recent version entries for what changed and why.
+> Append a new version entry (or add to `[Unreleased]`) at the end of every work session.
+
+---
+
+## Project Context (always kept current)
+
+**What:** Full-stack Indian stock market paper-trading platform with AI-driven buy/sell decisions.
+Virtual accounts, real NSE/BSE prices, AI trader running on cron during NSE market hours.
+
+**Live:** `https://finpredict.chkoushik.com`
+**Server:** `[REDACTED-HOST]` · SSH: `[REDACTED-SSH-ENDPOINT]`
+**Container:** `finpredict` (Docker, host port 3004 → container 3000)
+**Source:** `/var/www/html/FinPredict-AI/` · GitHub: `github.com/koushikch7/FinPredict-AI` (branch: `main`)
+**Stack:** React + Vite + TypeScript · Express + tsx · SQLite (better-sqlite3) · Docker
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `server/index.ts` | Express entry, middleware, route registration, background jobs |
+| `server/routes/playground.ts` | Paper trading API: account, positions, manual trade, AI cycle trigger |
+| `server/services/paper-trading.ts` | AI trader cycle, Kelly sizing, conviction scoring, risk controls |
+| `server/services/ai.ts` | AI provider abstraction (Gemini/OpenAI/Arbiter), fallback chain |
+| `server/services/prices.ts` | Yahoo Finance quote/history; `fetchYahooQuote()`, `latestPrice()` |
+| `server/jobs/scheduler.ts` | All cron jobs (AI trader every 5min NSE hours, equity curve, news, backup) |
+| `server/config.ts` | Zod-validated environment config |
+| `src/pages/Playground.tsx` | Paper trading UI (606 lines) |
+| `.env` | All secrets — never commit |
+
+### AI Configuration
+
+```
+Primary:  DEFAULT_AI_PROVIDER=Arbiter, DEFAULT_AI_MODEL=auto
+          → routes via https://arbiter.chkoushik.com/v1
+Fallback: Gemini / gemini-2.5-flash
+          NOTE: "auto" is invalid for Gemini SDK — resolveFallbackChain() substitutes gemini-2.5-flash
+Paper trader timeout: 60s
+```
+
+### Stock Price Sources (priority order)
+
+1. **Kite (Zerodha)** — needs daily OAuth token renewal; portfolio sync works; live quotes need paid subscription
+2. **Yahoo Finance** `query1.finance.yahoo.com/v8/finance/chart/{SYM}.NS`
+   - **MUST use Chrome User-Agent** — custom UAs get blocked from inside Docker
+   - Current UA: `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36`
+3. **DB cache** `latestPrice(stockId)` — last resort when both above fail
+
+### Background Jobs
+
+| Job | Schedule | What |
+|-----|----------|------|
+| AI Trader | `*/5 * * * 1-5` (NSE hours) | `runAITraderCycle()` for users with `auto_trade=true` |
+| Equity curve | `*/5 * * * *` | `recomputeEquity()` |
+| News + FinBERT | `*/30 * * * *` | Fetch headlines, score sentiment |
+| Prediction validation | `0 * * * *` | Validate pending predictions |
+| IPO refresh | `0 */12 * * *` | AI-powered IPO analysis |
+| Discovery scan | `0 */4 * * *` | Cross-cap opportunity scanner |
+| Daily backup | `0 2 * * *` IST | OCI Object Storage |
+
+### Deployment
+
+```bash
+# Quick single-file change (no rebuild)
+docker cp /var/www/html/FinPredict-AI/server/<file> finpredict:/app/server/<file>
+docker restart finpredict
+
+# Full rebuild
+cd /var/www/html/FinPredict-AI && docker compose up --build -d
+
+# Logs / health
+docker logs finpredict --since 10m
+curl -s http://localhost:3004/api/health
+```
+
+### Known Issues / Open Items
+
+- **Kite daily OAuth** — access_token expires daily; manual re-auth needed. Falls back to Yahoo until done.
+- **Kite market data** — paid subscription needed for live tick quotes; Yahoo is the reliable fallback.
+- **Arbiter 60s timeouts** — Gemini fallback handles this since v1.6.1.
+- **Dependabot** — 6 vulnerabilities (1 high, 4 moderate, 1 low). Review when possible.
+
+---
 
 ## [Unreleased]
 
