@@ -11,6 +11,7 @@ import { syncAllBrokersForUser } from '../services/portfolio-sync.js';
 import { isNseOpen } from '../utils/market-hours.js';
 import { refreshIPOs } from '../services/ipo.js';
 import { runDiscoveryScan } from '../services/discovery.js';
+import { snapshotPrices } from '../services/prices.js';
 
 let started = false;
 let traderRunning = false;
@@ -35,6 +36,32 @@ export function startJobs() {
       }
     } finally {
       traderRunning = false;
+    }
+  });
+
+  // ── Price snapshot: every 10 min during NSE hours ──
+  // Populates `stock_prices` for the liquid + actively-traded universe so that
+  // market-regime detection, the turbulence index, the liquidity floor and the
+  // manual-trade cached-price fallback all have real data. Without this job the
+  // table stays empty and regime is permanently "Sideways" (HOLD-biased).
+  cron.schedule('*/10 * * * 1-5', async () => {
+    if (!isNseOpen()) return;
+    try {
+      const stocks = db.prepare(
+        `SELECT DISTINCT s.id, s.symbol, s.exchange FROM stocks s
+          WHERE s.id IN (SELECT stock_id FROM paper_positions)
+             OR s.id IN (SELECT stock_id FROM watchlist)
+             OR s.id IN (SELECT stock_id FROM stock_opportunities WHERE created_at >= datetime('now','-2 day'))
+             OR s.tier IN ('large','mid')
+             OR s.tier IS NULL
+          LIMIT 90`,
+      ).all() as Array<{ id: number; symbol: string; exchange: string }>;
+      if (stocks.length) {
+        const r = await snapshotPrices(stocks, 5);
+        logger.info({ universe: stocks.length, ...r }, 'Price snapshot complete');
+      }
+    } catch (e: any) {
+      logger.warn({ err: e.message }, 'Price snapshot job failed');
     }
   });
 

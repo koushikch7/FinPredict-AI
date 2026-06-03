@@ -97,6 +97,40 @@ export async function fetchYahooHistory(
   }
 }
 
+/**
+ * Snapshot live quotes for a set of stocks and persist them to `stock_prices`.
+ * Best-effort + bounded concurrency. This is what keeps the price-history table
+ * populated so that market-regime detection, the turbulence index, the liquidity
+ * floor and the manual-trade cached-price fallback all have data to work with.
+ * Returns counts so the scheduler can log progress.
+ */
+export async function snapshotPrices(
+  stocks: Array<{ id: number; symbol: string; exchange: string }>,
+  concurrency = 5,
+): Promise<{ recorded: number; failed: number }> {
+  let recorded = 0;
+  let failed = 0;
+  let i = 0;
+  const workers = Array.from({ length: Math.max(1, concurrency) }, async () => {
+    while (i < stocks.length) {
+      const s = stocks[i++];
+      try {
+        const q = await fetchYahooQuote(s.symbol, s.exchange);
+        if (q) {
+          recordPrice(s.id, q);
+          recorded++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+  });
+  await Promise.all(workers);
+  return { recorded, failed };
+}
+
 /** Persist a price tick. Used by sync jobs. */
 export function recordPrice(stockId: number, q: PriceQuote): void {
   db.prepare(

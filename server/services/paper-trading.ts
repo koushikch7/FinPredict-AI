@@ -142,8 +142,11 @@ function tieredTrailGiveback(peakGainPct: number): number | null {
  */
 function sectorExposurePct(accountId: number, sectorName: string, totalEquity: number, addNotional: number): number {
   if (!sectorName || !totalEquity) return 0;
+  // paper_positions has no `last_price` column (schema: quantity, average_price);
+  // referencing it threw "no such column: p.last_price" on every BUY. Use the
+  // cost-basis (average_price) as the notional proxy for the sector cap.
   const row = db.prepare(
-    `SELECT COALESCE(SUM(p.quantity * COALESCE(p.last_price, p.average_price)), 0) AS notional
+    `SELECT COALESCE(SUM(p.quantity * p.average_price), 0) AS notional
        FROM paper_positions p JOIN stocks s ON p.stock_id = s.id
       WHERE p.account_id = ? AND s.sector = ?`,
   ).get(accountId, sectorName) as { notional: number };
@@ -155,10 +158,14 @@ function sectorExposurePct(accountId: number, sectorName: string, totalEquity: n
  * Returns null when we have no price history (treat as "unknown — be careful").
  */
 function avgDailyTurnover20d(stockId: number): number | null {
+  // NOTE: stock_prices has columns `timestamp` and `price` (and an often-empty
+  // `close`). The original query referenced a non-existent `date` column which
+  // threw "no such column: date" on EVERY buy — silently blocking all AI buys.
+  // We now use `timestamp` and fall back to `price` when `close` is null.
   const row = db.prepare(
-    `SELECT AVG(close * volume) AS tov, COUNT(*) AS n
+    `SELECT AVG(COALESCE(close, price) * volume) AS tov, COUNT(*) AS n
        FROM stock_prices
-      WHERE stock_id = ? AND date >= date('now','-30 days')`,
+      WHERE stock_id = ? AND timestamp >= datetime('now','-30 days')`,
   ).get(stockId) as { tov: number | null; n: number };
   if (!row.tov || row.n < 5) return null;
   return row.tov;
@@ -194,6 +201,7 @@ const MIN_CONVICTION_SELL = 0.50;     // Lower bar for sells (capital preservati
 const MAX_BUYS_PER_CYCLE = 3;         // Quality over quantity
 const TRAILING_STOP_PCT = 4;          // Trail 4% below peak
 const MIN_REWARD_RISK_RATIO = 2.0;    // Expected gain must be 2x potential loss
+const SECTOR_CAP_PCT = 30;            // Max % of total equity in any one sector
 
 const DEFAULT_UNIVERSE = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'ITC', 'SBIN', 'LT', 'BHARTIARTL', 'MARUTI'];
 
@@ -711,7 +719,11 @@ export async function runAITraderCycle(
   }
 
   // ── Stop-loss / trailing-stop / take-profit pre-pass ──
-  const regimeInfo = detectMarketRegime(positions.map((p) => p.symbol).slice(0, 12));
+  // NOTE: regimeInfo is refined below once per-symbol live contexts are built —
+  // detectMarketRegime reads the stock_prices table which is empty on a cold
+  // start, so on its own it always returns "Sideways" (the most conservative,
+  // HOLD-biased playbook). See the breadth-based refinement after ctxs.
+  let regimeInfo = detectMarketRegime(positions.map((p) => p.symbol).slice(0, 12));
   const forced: Array<{ symbol: string; reason: string }> = [];
   for (const p of positions) {
     const ltp = ltps.get(p.symbol) ?? p.average_price;
@@ -847,12 +859,62 @@ export async function runAITraderCycle(
   // Compact context per symbol (technicals + 30d candles + per-symbol news headlines)
   const ctxs: Record<string, any> = {};
   // FP-1.20.1: ctxSymbols expanded 12 -> 30 to match larger universe.
-  const ctxSymbols = universe.slice(0, 30);
+  let ctxSymbols = universe.slice(0, 30);
   await Promise.all(
     ctxSymbols.map(async (sym) => {
       try { ctxs[sym] = await buildContext(sym, 'NSE'); } catch {}
     }),
   );
+
+  // FP: prune symbols Yahoo couldn't price. Several seeded NSE tickers are
+  // stale/renamed (e.g. AMARAJABAT → ARE&M, TATATELE → TTML) and return 404, so
+  // their context is empty. Feeding empty contexts to the AI just dilutes its
+  // focus and biases it toward HOLD-everything. We keep currently-held symbols
+  // in the universe regardless so the AI can still decide to SELL them.
+  {
+    const heldSymbols = new Set(positions.map((p) => p.symbol));
+    const validCtxSymbols = ctxSymbols.filter((s) => heldSymbols.has(s) || ctxs[s]?.quote != null);
+    // Only narrow if we still have a workable set — otherwise (e.g. Yahoo fully
+    // down) fall back to the original universe rather than starving the AI.
+    if (validCtxSymbols.length >= 5) {
+      for (const s of ctxSymbols) {
+        if (!heldSymbols.has(s) && ctxs[s]?.quote == null) delete ctxs[s];
+      }
+      ctxSymbols = [...new Set([...heldSymbols, ...validCtxSymbols])];
+      universe = [...new Set([...heldSymbols, ...validCtxSymbols, ...universe.filter((s) => heldSymbols.has(s) || ctxs[s]?.quote != null)])];
+    }
+  }
+
+  // ── Cold-start regime refinement ──────────────────────────────────────────
+  // detectMarketRegime() reads the (initially empty) stock_prices table, so a
+  // fresh deployment is stuck reporting "Sideways" and the AI is fed the most
+  // conservative playbook → it never buys → never builds positions → never
+  // leaves Sideways. Break that trap by deriving a coarse regime from the LIVE
+  // Yahoo technicals already in ctxs (close vs 20-SMA breadth + average 1-day
+  // change). Once the new price-snapshot cron has accumulated history, the
+  // stock_prices-based regime takes over naturally.
+  if (regimeInfo.breadth.up + regimeInfo.breadth.down + regimeInfo.breadth.flat < 5) {
+    let up = 0, down = 0, flat = 0;
+    const changes: number[] = [];
+    for (const c of Object.values(ctxs) as any[]) {
+      const e = c?.enhanced;
+      if (!e || e.close == null || e.sma20 == null) continue;
+      const ch = Number(e.priceChange1d ?? 0);
+      changes.push(ch);
+      if (e.close > e.sma20 * 1.005) up++;
+      else if (e.close < e.sma20 * 0.995) down++;
+      else flat++;
+    }
+    const sampled = up + down + flat;
+    if (sampled >= 5) {
+      const avgChange = changes.reduce((s, v) => s + v, 0) / (changes.length || 1);
+      let regime: 'Bullish' | 'Bearish' | 'Sideways' = 'Sideways';
+      if (up / sampled >= 0.55 && up > down) regime = 'Bullish';
+      else if (down / sampled >= 0.55 && down > up) regime = 'Bearish';
+      regimeInfo = { regime, medianReturnPct: avgChange, breadth: { up, down, flat } };
+      logger.info({ regime, up, down, flat, avgChange: avgChange.toFixed(2) }, 'AI trader: regime derived from live technicals (cold-start)');
+    }
+  }
 
   // Recent prediction outputs for these symbols (boost AI's situational awareness)
   const recentPredictions = (db.prepare(
@@ -987,13 +1049,54 @@ Past strategy P&L on this account (closed trades): ${JSON.stringify(strategyStat
 Per-symbol market context (technicals + last 30 candles + per-symbol news):
 ${JSON.stringify(ctxs).slice(0, 12_000)}`;
 
+  // Robustly pull a { decisions: [...] } object out of an AI response that may
+  // be wrapped in prose or code fences. Mirrors the recovery used in
+  // predictions.ts / discovery.ts.
+  const parseDecisions = (text: string): AIAction[] | null => {
+    if (!text || !text.trim()) return null;
+    const tryParse = (s: string): AIAction[] | null => {
+      try {
+        const j = JSON.parse(s);
+        if (j && Array.isArray(j.decisions)) return j.decisions as AIAction[];
+      } catch { /* fall through */ }
+      return null;
+    };
+    return tryParse(text.trim()) ?? (() => {
+      const m = /\{[\s\S]*\}/.exec(text);
+      return m ? tryParse(m[0]) : null;
+    })();
+  };
+
+  // The trade decision is the most important AI call in the system, so we steer
+  // Arbiter's auto-router toward strict-JSON, instruction-following providers and
+  // away from the ones empirically observed to return empty/truncated bodies or
+  // pure coding models (cloudflare gpt-oss → 0 chars, ollama qwen3-coder → empty,
+  // pollinations → truncated JSON). If the first parse still fails we retry once
+  // with temperature 0 and a different preferred provider before giving up.
   let decisions: AIAction[] = [];
   let aiMeta: AICallRecord | null = null;
+  const traderCallOpts = {
+    prompt,
+    systemPrompt: system,
+    json: true as const,
+    temperature: 0.3,
+    timeoutMs: 60_000,
+    callerTag: 'paper-trader' as const,
+    preferProvider: 'cerebras',
+    avoidProviders: ['pollinations', 'cloudflare', 'ollama', 'huggingface'],
+  };
   try {
-    const r = await aiCompleteMeta(aiCfg, { prompt, systemPrompt: system, json: true, temperature: 0.3, timeoutMs: 60_000, callerTag: 'paper-trader' });
+    const r = await aiCompleteMeta(aiCfg, traderCallOpts);
     aiMeta = r.meta;
-    const j = JSON.parse(r.text);
-    decisions = (j.decisions ?? []) as AIAction[];
+    let parsed = parseDecisions(r.text);
+    if (parsed === null) {
+      logger.warn({ chars: r.text?.length ?? 0 }, 'AI trader cycle: unparseable response — retrying once (temp 0, prefer groq)');
+      const r2 = await aiCompleteMeta(aiCfg, { ...traderCallOpts, temperature: 0, preferProvider: 'groq', timeoutMs: 75_000 });
+      aiMeta = r2.meta;
+      parsed = parseDecisions(r2.text);
+    }
+    if (parsed === null) throw new Error('AI returned no parseable { decisions } JSON after retry');
+    decisions = parsed;
   } catch (e: any) {
     logger.warn({ err: e.message }, 'AI trader cycle: bad response');
     await recomputeEquity(acc.id);
@@ -1134,24 +1237,37 @@ ${JSON.stringify(ctxs).slice(0, 12_000)}`;
         const existingNotional = existing ? existing.quantity * q.price : 0;
         const headroom = Math.max(0, maxPosNotional - existingNotional);
         const cashLimit = accAfter.cash * 0.95;
+
+        // ── FP: fold the sector cap into sizing instead of hard-rejecting ──
+        // The per-position cap (e.g. 33% for Aggressive) is looser than the 30%
+        // sector cap, so a single max-sized buy in an empty sector would always
+        // exceed 30% and get rejected — meaning a fresh account could never open
+        // its first position. Compute the remaining sector headroom and treat it
+        // as just another sizing constraint, so the quantity is shrunk to fit.
+        const stockSector = (stock as any).sector || null;
+        let sectorHeadroom = Infinity;
+        if (stockSector) {
+          const curSectorPct = sectorExposurePct(acc.id, stockSector, totalEquityHint, 0);
+          sectorHeadroom = Math.max(0, ((SECTOR_CAP_PCT - curSectorPct) / 100) * totalEquityHint);
+        }
+
         // Phase 5: Apply turbulence multiplier to reduce position size in volatile markets
         // FP-1.20.1: Combine turbulence (volatility) + Kelly (edge) + rolling-DD (capital preservation)
         const kelly = kellySizingFactor(strategyStats, tag, finalConviction);
         const rollingMul = rollingDdMode === 'reduce' ? 0.5 : 1.0;
         const sizingMultiplier = turbulence.positionMultiplier * kelly * rollingMul;
-        const turbulenceAdjusted = Math.min(headroom, cashLimit) * sizingMultiplier;
+        const turbulenceAdjusted = Math.min(headroom, cashLimit, sectorHeadroom) * sizingMultiplier;
         const maxQty = Math.floor(turbulenceAdjusted / q.price);
         const qty = Math.max(0, Math.min(Math.floor(d.quantity), maxQty));
         if (qty <= 0) {
-          errors.push(`Skipped BUY ${d.symbol}: position-cap or cash limit (max ${maxQty})`);
+          errors.push(`Skipped BUY ${d.symbol}: position/cash/sector cap leaves no room (sector ${stockSector ?? 'n/a'})`);
           continue;
         }
 
-        // ── FP-1.20.1: Programmatic sector cap (was prompt-only before) ──
-        const stockSector = (stock as any).sector || null;
+        // Defense-in-depth: sector cap should already be satisfied by sizing above.
         const sectorPctAfter = sectorExposurePct(acc.id, stockSector, totalEquityHint, qty * q.price);
-        if (stockSector && sectorPctAfter > 30) {
-          errors.push(`Skipped BUY ${d.symbol}: sector ${stockSector} would be ${sectorPctAfter.toFixed(1)}% (cap 30%)`);
+        if (stockSector && sectorPctAfter > SECTOR_CAP_PCT + 0.5) {
+          errors.push(`Skipped BUY ${d.symbol}: sector ${stockSector} would be ${sectorPctAfter.toFixed(1)}% (cap ${SECTOR_CAP_PCT}%)`);
           continue;
         }
 

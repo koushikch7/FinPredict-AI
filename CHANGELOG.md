@@ -55,6 +55,7 @@ Paper trader timeout: 60s
 | Job | Schedule | What |
 |-----|----------|------|
 | AI Trader | `*/5 * * * 1-5` (NSE hours) | `runAITraderCycle()` for users with `auto_trade=true` |
+| Price snapshot | `*/10 * * * 1-5` (NSE hours) | `snapshotPrices()` — records live quotes for the liquid/active universe into `stock_prices` (powers regime, turbulence, liquidity floor, cached-price fallback) |
 | Equity curve | `*/5 * * * *` | `recomputeEquity()` |
 | News + FinBERT | `*/30 * * * *` | Fetch headlines, score sentiment |
 | Prediction validation | `0 * * * *` | Validate pending predictions |
@@ -81,12 +82,47 @@ curl -s http://localhost:3004/api/health
 
 - **Kite daily OAuth** — access_token expires daily; manual re-auth needed. Falls back to Yahoo until done.
 - **Kite market data** — paid subscription needed for live tick quotes; Yahoo is the reliable fallback.
-- **Arbiter 60s timeouts** — Gemini fallback handles this since v1.6.1.
+- **Arbiter 60s timeouts** — Gemini fallback handles this since v1.6.1. As of v1.6.2 the paper-trader also prefers `cerebras`/`groq` and avoids empty/coder providers, so most calls now resolve in ~2-3s.
+- **Stale/renamed NSE symbols** — a handful of seeded tickers return Yahoo 404 (e.g. `AMARAJABAT`→`ARE&M`, `TATATELE`→`TTML`, `TATAMOTORS` split). v1.6.2 drops un-priceable symbols from the AI universe at runtime, but the seed list in `server/db/stock-seed.ts` should be cleaned up.
 - **Dependabot** — 6 vulnerabilities (1 high, 4 moderate, 1 low). Review when possible.
 
 ---
 
 ## [Unreleased]
+
+---
+
+## [1.6.2] — 2026-06-03
+
+Major reliability fix release. The Playground AI trader was running every cycle but **never buying or selling** — it would log `decisions:N, executed:0, errors:N` (or crash on empty AI responses). Root-caused via live log + DB analysis to a combination of two deterministic SQLite schema bugs, an AI-response-reliability gap, a missing price-history job, and a cold-start regime trap. After these fixes a live cycle on a fresh account produced 3 high-conviction BUYs and executed all 3 cleanly (`executed:3, errors:0`).
+
+### Fixed
+
+- **CRITICAL: every BUY threw `no such column: date`** (`server/services/paper-trading.ts` → `avgDailyTurnover20d`) — the liquidity-floor query selected `AVG(close * volume)` filtered on a `date` column, but `stock_prices` has no `date` column (it has `timestamp`) and an unpopulated `close`. The query threw on **every** BUY attempt, was caught by the execution try/catch, and surfaced as a generic error → the trade was silently dropped. Now uses `timestamp` + `COALESCE(close, price)`.
+
+- **CRITICAL: every BUY threw `no such column: p.last_price`** (`server/services/paper-trading.ts` → `sectorExposurePct`) — the sector-concentration query referenced `p.last_price`, but `paper_positions` only has `quantity` + `average_price`. Same failure mode as above (every BUY blocked). Now uses `average_price` as the notional proxy.
+
+- **Empty AI responses silently killed the cycle** (`server/services/ai.ts`) — Arbiter's `auto` router frequently dispatched the paper-trader to flaky free providers (Cloudflare Workers AI `@cf/openai/gpt-oss-120b` returned **0 chars**; ollama `qwen3-coder:480b-cloud` — a *coding* model — returned empty/`{"decisions":[]}` after 48s). A 200-OK-but-empty body was treated as success, so `JSON.parse('')` threw downstream and the fallback chain never fired. `runOnce()` now throws on an empty JSON response and `shouldFallback()` treats it as retryable, so the Gemini fallback (and the chain) actually engages.
+
+- **Cold-start regime trap** (`server/services/paper-trading.ts`) — `detectMarketRegime()` reads `stock_prices`, which was empty (see new price-snapshot job below), so it always returned `Sideways` → the most conservative "wait for RSI<35 / avoid chasing" playbook → the AI never bought → never built positions → never left Sideways. The regime is now refined from the **live Yahoo technicals already in `ctxs`** (close-vs-20-SMA breadth + average 1-day change) whenever DB price history is insufficient, so the AI gets a real Bullish/Bearish/Sideways signal immediately.
+
+- **Sector cap hard-rejected the first position** (`server/services/paper-trading.ts`) — the per-position cap (33% for Aggressive) is looser than the 30% sector cap, so a single max-sized buy in an empty sector always exceeded 30% and was hard-rejected, meaning a fresh account could never open its first position. The 30% sector cap is now folded into position **sizing** (the quantity is shrunk to fit the sector headroom) instead of rejecting outright; a defense-in-depth check remains.
+
+### Changed
+
+- **Paper-trader AI call hardened** (`server/services/paper-trading.ts`) — now mirrors the proven Discovery pattern: `preferProvider: 'cerebras'`, `avoidProviders: ['pollinations','cloudflare','ollama','huggingface']`, robust `{ decisions }` JSON extraction (handles prose/code-fence wrapping), and a one-shot stricter retry (temp 0, `preferProvider: 'groq'`) before giving up. Trade-decision calls now typically resolve in ~2-3s with valid JSON instead of timing out or returning empty.
+
+- **AI universe quality** (`server/services/paper-trading.ts`) — symbols Yahoo can't price (stale/renamed NSE tickers) are dropped from the universe + context before the AI call, so the model isn't fed empty contexts that bias it toward HOLD. Currently-held symbols are always retained so the AI can still SELL them.
+
+### Added
+
+- **Price-snapshot cron** (`server/jobs/scheduler.ts`, `server/services/prices.ts` → `snapshotPrices()`) — every 10 min during NSE hours, records live quotes for the liquid/active universe (held + watchlist + recent discovery picks + large/mid tiers) into `stock_prices`. This was previously **never populated by any job**, which is what left regime detection, the turbulence index, the liquidity floor and the manual-trade cached-price fallback without data.
+
+### Notes
+
+- No database migrations required (all fixes are schema-compatible; the bugs were *queries* referencing non-existent columns).
+- No breaking changes to the API or frontend.
+- Deployed via `docker cp` of the four changed files (`paper-trading.ts`, `ai.ts`, `prices.ts`, `scheduler.ts`) + `docker restart finpredict` (tsx runtime, no build step). Verified with `npm run typecheck` and a live AI cycle.
 
 ---
 

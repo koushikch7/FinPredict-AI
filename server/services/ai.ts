@@ -169,6 +169,7 @@ function shouldFallback(err: any): boolean {
   const status = Number(err?.status ?? err?.code ?? 0);
   if (/429|RESOURCE_EXHAUSTED|rate.?limit|quota|too many requests/i.test(msg)) return true;
   if (/timed out|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|fetch failed|network/i.test(msg)) return true;
+  if (/empty response/i.test(msg)) return true; // 200-OK-but-empty body → try next provider
   if (status >= 500 && status < 600) return true;
   if (/\b(5\d{2})\b/.test(msg)) return true;            // "503 Service Unavailable" in body
   if (/cloudflare|blocked|forbidden/i.test(msg) && status !== 401) return true;
@@ -302,8 +303,17 @@ export async function aiComplete(cfg: ResolvedAI, opts: CallOpts): Promise<strin
     return { text: cleanJSON(res.text || ''), upstreamModel: c.model, complexity: undefined, routedProvider: c.provider, realtimeSources: undefined };
   };
 
-  const runOnce = (c: ResolvedAI) =>
-    c.provider === 'Gemini' ? callGemini(c) : callOpenAICompatible(c);
+  const runOnce = async (c: ResolvedAI) => {
+    const r = c.provider === 'Gemini' ? await callGemini(c) : await callOpenAICompatible(c);
+    // A 200-OK-but-empty body (seen from Cloudflare Workers AI / some coder
+    // models routed by Arbiter "auto") must be treated as a FAILURE, otherwise
+    // it bubbles up as a "successful" empty string, the caller's JSON.parse('')
+    // throws downstream, and the fallback chain never gets a chance to run.
+    if (opts.json && (!r.text || !r.text.trim())) {
+      throw new Error(`empty response from ${c.provider}/${c.model}`);
+    }
+    return r;
+  };
 
   const withTimeout = <T,>(p: Promise<T>) =>
     Promise.race<T>([
