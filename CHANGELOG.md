@@ -92,6 +92,30 @@ curl -s http://localhost:3004/api/health
 
 ---
 
+## [1.6.4] — 2026-06-15
+
+Dependency-vulnerability remediation + Arbiter AI reliability hardening. `npm audit` reported 11 advisories (7 high, 4 moderate) on the default branch; all are now resolved (`found 0 vulnerabilities`). A live + log-based review of the Arbiter gateway confirmed the API is healthy (~97% first-try success in production with a working fallback chain); the only recurring issue was the `pollinations` free provider returning 200-OK **empty** bodies, which is now both avoided and caught for every call type.
+
+### Security
+
+- **All 11 dependency advisories fixed** (`package.json`, `package-lock.json`) — `npm audit` is now clean:
+  - `axios` → 1.18.0 (8 advisories: ReDoS, NO_PROXY bypass, Proxy-Authorization leak/injection, prototype-pollution MITM — high).
+  - `react-router` / `react-router-dom` → patched (DoS via unbounded path expansion in `__manifest` — high).
+  - `fast-xml-builder`, `protobufjs`, `qs` (→ via `express` 4.22.2), `ws` 8.21.0 — moderate/high DoS + bypass advisories.
+  - `esbuild` (high: dev-server arbitrary file read + Deno-module RCE) — cleared by upgrading **Vite 6 → 8.0.16** and moving `vite`, `@vitejs/plugin-react`, `@tailwindcss/vite` from `dependencies` to **`devDependencies`** (they are build-only). The production image (`npm ci --omit=dev`) now contains no `vite`/dev-server `esbuild`; the only remaining `esbuild` is the **patched 0.28.1** pulled by `tsx` (the runtime), which is not subject to the advisory (≤ 0.28.0).
+
+### Fixed
+
+- **Arbiter empty-response handling now covers every call, not just JSON** (`server/services/ai.ts`) — `runOnce()` previously only treated a 200-OK-but-empty body as a failure when `opts.json` was set. Non-JSON callers (chat, healthcheck, prediction explanations) could therefore receive a silent blank reply with no fallback. The empty-body guard now fires for **all** calls, so an empty response always routes through `shouldFallback()` to the next provider.
+- **`pollinations` avoided by default on Arbiter** (`server/services/ai.ts`) — the `auto` router intermittently dispatched to `pollinations`/`openai-fast`, which consistently returns empty content (verified live). A baseline `avoid_providers: ['pollinations']` is now always sent to Arbiter (merged with any caller-supplied list), so the gateway skips it before wasting a round-trip.
+
+### Verified
+
+- **Arbiter API health:** `GET /v1/models` → HTTP 200; a live `chat/completions` with `pollinations` avoided routed to Cloudflare `@cf/openai/gpt-oss-20b` and returned valid content in ~1.4s. Production logs over the review window: **31 AI ok / 1 fail** (a transient double-outage where Arbiter returned empty *and* the Gemini fallback was 503 — handled gracefully, no crash).
+- `npm run typecheck` + `vite build` (v8) clean; image rebuilt + redeployed; container healthy; `npm audit` = 0 vulnerabilities.
+
+---
+
 ## [1.6.3] — 2026-06-15
 
 Enterprise audit + remediation release. A full security / performance / functional review (code, 11 days of live container logs, and the production DB) was run against the deployed system. The audit clarified that the reported “shared credentials” symptom is **not** session/data bleed (all routes are correctly `user_id`-scoped, no IDOR, no SQL injection) but rather **global AI provider keys** silently inherited by every user, plus two real secret-handling gaps. Paper-trading losses were root-caused on user 2’s live account: equity ₹96,102 (−3.9%) with **₹3,057 (3.06%) paid in fees across 185 trades** — overtrading + a non-functional trailing stop + a stop-loss silently disabled on stale-quote symbols were the dominant drags. The highest-value, lowest-risk fixes were implemented and deployed; deeper prediction-algorithm changes are catalogued under Notes for review.

@@ -262,7 +262,13 @@ export async function aiComplete(cfg: ResolvedAI, opts: CallOpts): Promise<strin
       // FP-1.20: per-call provider preferences (Discovery prefers strict-JSON providers,
       // avoids weak ones; chat/IPO can opt into realtime web search).
       if (opts.preferProvider) md.prefer_provider = opts.preferProvider;
-      if (opts.avoidProviders && opts.avoidProviders.length) md.avoid_providers = opts.avoidProviders;
+      // Always steer Arbiter's `auto` router away from the consistently
+      // empty-bodied free provider (pollinations/openai-fast) — it returns
+      // 200-OK with no content, which only wastes a round-trip before the
+      // empty-response guard forces a fallback. Callers can add more.
+      const baseAvoid = ['pollinations'];
+      const mergedAvoid = Array.from(new Set([...baseAvoid, ...(opts.avoidProviders ?? [])]));
+      md.avoid_providers = mergedAvoid;
       if (opts.realtime) md.realtime = true;
       arbiterExtras.metadata = md;
       // Let the gateway pick a capability-matched alternate model when our
@@ -305,11 +311,14 @@ export async function aiComplete(cfg: ResolvedAI, opts: CallOpts): Promise<strin
 
   const runOnce = async (c: ResolvedAI) => {
     const r = c.provider === 'Gemini' ? await callGemini(c) : await callOpenAICompatible(c);
-    // A 200-OK-but-empty body (seen from Cloudflare Workers AI / some coder
-    // models routed by Arbiter "auto") must be treated as a FAILURE, otherwise
-    // it bubbles up as a "successful" empty string, the caller's JSON.parse('')
-    // throws downstream, and the fallback chain never gets a chance to run.
-    if (opts.json && (!r.text || !r.text.trim())) {
+    // A 200-OK-but-empty body (seen from Cloudflare Workers AI / pollinations /
+    // some coder models routed by Arbiter "auto") must be treated as a FAILURE
+    // for EVERY call — not just JSON. Otherwise it bubbles up as a "successful"
+    // empty string: a JSON caller's `JSON.parse('')` throws downstream, and a
+    // chat/healthcheck caller silently shows the user a blank reply — in both
+    // cases the fallback chain never gets a chance to run. Throwing here routes
+    // empties through `shouldFallback()` → next provider.
+    if (!r.text || !r.text.trim()) {
       throw new Error(`empty response from ${c.provider}/${c.model}`);
     }
     return r;

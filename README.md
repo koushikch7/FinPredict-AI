@@ -182,7 +182,7 @@ All long-running jobs (Discovery, IPO) also run a **boot warmup** so the first b
 Single container hosting a Vite-built SPA (`dist/`) plus an Express API on one port:
 
 ```
-React 19 + Vite 6 + Tailwind 4 + Recharts + React Router 7
+React 19 + Vite 8 + Tailwind 4 + Recharts + React Router 7
                 |
                 v   (same origin)
 Express 4 — routes/ services/ jobs/ middleware/
