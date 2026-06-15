@@ -108,11 +108,12 @@ Dependency-vulnerability remediation + Arbiter AI reliability hardening. `npm au
 
 - **Arbiter empty-response handling now covers every call, not just JSON** (`server/services/ai.ts`) — `runOnce()` previously only treated a 200-OK-but-empty body as a failure when `opts.json` was set. Non-JSON callers (chat, healthcheck, prediction explanations) could therefore receive a silent blank reply with no fallback. The empty-body guard now fires for **all** calls, so an empty response always routes through `shouldFallback()` to the next provider.
 - **`pollinations` avoided by default on Arbiter** (`server/services/ai.ts`) — the `auto` router intermittently dispatched to `pollinations`/`openai-fast`, which consistently returns empty content (verified live). A baseline `avoid_providers: ['pollinations']` is now always sent to Arbiter (merged with any caller-supplied list), so the gateway skips it before wasting a round-trip.
+- **Docker healthcheck false-negative** (`Dockerfile`) — the `HEALTHCHECK` used `wget http://localhost:3000/...`, but inside Alpine `localhost` resolves to IPv6 `::1` first while the server binds IPv4 `0.0.0.0`, so `wget` got `Connection refused` and the container was flagged `unhealthy` even though it was serving traffic normally. Switched the probe to `http://127.0.0.1:3000` (forces IPv4). Real traffic via the host port mapping was never affected.
 
 ### Verified
 
 - **Arbiter API health:** `GET /v1/models` → HTTP 200; a live `chat/completions` with `pollinations` avoided routed to Cloudflare `@cf/openai/gpt-oss-20b` and returned valid content in ~1.4s. Production logs over the review window: **31 AI ok / 1 fail** (a transient double-outage where Arbiter returned empty *and* the Gemini fallback was 503 — handled gracefully, no crash).
-- `npm run typecheck` + `vite build` (v8) clean; image rebuilt + redeployed; container healthy; `npm audit` = 0 vulnerabilities.
+- `npm run typecheck` + `vite build` (v8) clean; image rebuilt + redeployed; container reports **healthy**; `npm audit` = 0 vulnerabilities.
 
 ---
 
