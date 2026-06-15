@@ -1,6 +1,8 @@
 import { db } from '../db/index.js';
 import { resolveAIConfig, aiComplete } from './ai.js';
-import { fetchYahooQuote } from './prices.js';
+import { fetchYahooQuote, fetchYahooHistory } from './prices.js';
+import { computeTechnicals } from './technicals.js';
+import { getSymbolSentiment, getMarketSentiment } from './sentiment.js';
 import { isNseOpen, isMarketHoliday, isTradingDay, getUpcomingHolidays } from '../utils/market-hours.js';
 import { logger } from '../logger.js';
 import https from 'https';
@@ -170,17 +172,33 @@ async function buildQuoteContext(content: string): Promise<string> {
 
   if (!tickers.length) return '';
 
-  const quotes = await Promise.all(
+  const snaps = await Promise.all(
     tickers.map(async (t) => {
       try {
-        const q = await fetchYahooQuote(t, 'NSE');
+        const [q, hist] = await Promise.all([
+          fetchYahooQuote(t, 'NSE'),
+          fetchYahooHistory(t, 'NSE', 120),
+        ]);
         if (!q) return null;
-        return `${t}: ₹${q.price.toFixed(2)} (${q.changePct != null ? (q.changePct >= 0 ? '+' : '') + q.changePct.toFixed(2) + '%' : '?'})`;
+        const parts = [`${t}: ₹${q.price.toFixed(2)} (${q.changePct != null ? (q.changePct >= 0 ? '+' : '') + q.changePct.toFixed(2) + '%' : '?'})`];
+        const closes = hist.map((c) => c.close as number).filter((x) => x != null);
+        const tech = closes.length >= 30 ? computeTechnicals(closes) : null;
+        if (tech) {
+          if (tech.rsi14 != null) {
+            const zone = tech.rsi14 > 70 ? ' overbought' : tech.rsi14 < 30 ? ' oversold' : '';
+            parts.push(`RSI ${tech.rsi14.toFixed(0)}${zone}`);
+          }
+          if (tech.macd) parts.push(`MACD ${tech.macd.histogram >= 0 ? 'bullish' : 'bearish'}`);
+          if (tech.sma20 != null) parts.push(`${q.price > tech.sma20 ? 'above' : 'below'} 20d-SMA`);
+        }
+        const sent = getSymbolSentiment(t, 7);
+        if (sent && sent.count > 0) parts.push(`news sentiment ${sent.avgScore >= 0 ? '+' : ''}${sent.avgScore.toFixed(2)} (${sent.trend})`);
+        return parts.join(' | ');
       } catch { return null; }
     }),
   );
-  const lines = quotes.filter(Boolean) as string[];
-  return lines.length ? `[Live Quotes]\n${lines.join('\n')}` : '';
+  const lines = snaps.filter(Boolean) as string[];
+  return lines.length ? `[Live Stock Snapshot — price, technicals, FinBERT sentiment]\n${lines.join('\n')}` : '';
 }
 
 function buildNewsContext(): string {
@@ -191,6 +209,34 @@ function buildNewsContext(): string {
     `).all() as Array<{ headline: string; source: string; sentiment: string; published_at: string }>;
     if (!news.length) return '';
     return `[Latest Financial News]\n${news.map((n) => `• ${n.headline} (${n.source}, ${n.sentiment ?? 'neutral'})`).join('\n')}`;
+  } catch { return ''; }
+}
+
+function buildPaperContext(userId: number): string {
+  try {
+    const acc = db.prepare('SELECT id, cash, starting_capital FROM paper_accounts WHERE user_id = ?').get(userId) as { id: number; cash: number; starting_capital: number } | undefined;
+    if (!acc) return '';
+    const positions = db.prepare(`
+      SELECT s.symbol, pp.quantity, pp.average_price FROM paper_positions pp
+      JOIN stocks s ON pp.stock_id = s.id WHERE pp.account_id = ?
+    `).all(acc.id) as Array<{ symbol: string; quantity: number; average_price: number }>;
+    const lastEq = db.prepare('SELECT total FROM paper_equity_curve WHERE account_id = ? ORDER BY id DESC LIMIT 1').get(acc.id) as { total: number } | undefined;
+    const total = lastEq?.total ?? acc.cash;
+    const pnl = total - acc.starting_capital;
+    const pnlPct = acc.starting_capital ? (pnl / acc.starting_capital) * 100 : 0;
+    let ctx = `[Paper Trading Account]\nEquity ₹${total.toFixed(0)} | Cash ₹${acc.cash.toFixed(0)} | P&L ${pnl >= 0 ? '+' : ''}₹${pnl.toFixed(0)} (${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%) | ${positions.length} open positions`;
+    if (positions.length) {
+      ctx += '\n' + positions.map((p) => `${p.symbol}: ${p.quantity} @ ₹${p.average_price.toFixed(2)}`).join('\n');
+    }
+    return ctx;
+  } catch { return ''; }
+}
+
+function buildSentimentContext(): string {
+  try {
+    const mkt = getMarketSentiment(3);
+    if (!mkt || mkt.count === 0) return '';
+    return `[Market Sentiment — FinBERT, 3-day]\nBroad market: ${mkt.avgScore >= 0 ? '+' : ''}${mkt.avgScore.toFixed(2)} (${mkt.bullish ? 'bullish' : 'cautious'}) across ${mkt.count} articles`;
   } catch { return ''; }
 }
 
@@ -236,9 +282,11 @@ export async function sendMessage(userId: number, sessionId: number | null, cont
   const contextBlocks = [
     buildMarketContext(),
     buildPortfolioContext(userId),
+    buildPaperContext(userId),
     buildWatchlistContext(userId),
     buildBrokerContext(userId),
     buildPredictionsContext(userId),
+    buildSentimentContext(),
     buildNewsContext(),
     quoteCtx,
   ].filter(Boolean);

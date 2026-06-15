@@ -92,6 +92,37 @@ curl -s http://localhost:3004/api/health
 
 ---
 
+## [1.6.3] — 2026-06-15
+
+Enterprise audit + remediation release. A full security / performance / functional review (code, 11 days of live container logs, and the production DB) was run against the deployed system. The audit clarified that the reported “shared credentials” symptom is **not** session/data bleed (all routes are correctly `user_id`-scoped, no IDOR, no SQL injection) but rather **global AI provider keys** silently inherited by every user, plus two real secret-handling gaps. Paper-trading losses were root-caused on user 2’s live account: equity ₹96,102 (−3.9%) with **₹3,057 (3.06%) paid in fees across 185 trades** — overtrading + a non-functional trailing stop + a stop-loss silently disabled on stale-quote symbols were the dominant drags. The highest-value, lowest-risk fixes were implemented and deployed; deeper prediction-algorithm changes are catalogued under Notes for review.
+
+### Security
+
+- **Secrets masked in `GET /api/admin/config`** (`server/routes/admin.ts`) — the endpoint previously returned every `configurations` value (including AI/broker API keys) in **plaintext** to the browser. Keys matching `KEY|SECRET|TOKEN|PASSWORD` are now returned masked (`••••••••<last4>`) with `is_secret` / `has_value` flags. The Admin **Config** UI (`src/pages/Admin.tsx`) shows the mask as a placeholder and only writes a secret when an admin actually types a new value, so the mask can never be saved back over a real key.
+- **AI endpoints rate-limited** (`server/index.ts`) — only `/api/auth/*` was throttled, leaving every LLM-triggering route open to cost-explosion / DoS abuse. Added a 40-request / 5-min per-IP limiter on `/api/chat/send`, `/api/predictions/generate`, `/api/predictions/top-picks`, `/api/playground/run-ai`, and `/api/discovery/scan`. Verified live (`RateLimit-Policy: 40;w=300`).
+
+### Fixed
+
+- **Trailing stop never fired** (`server/services/paper-trading.ts`) — the “peak” was derived from the most-recent BUY price, which collapsed to ≈ current price, so `drawdownFromPeak ≈ 0` and the tiered trailing-stop give-back was effectively inert (winners gave back gains). A persisted per-position **`peak_price` high-water mark** (new column, idempotent migration) is now bumped on every new high and drives the trail.
+- **Stop-loss silently disabled on stale-quote symbols** (`server/services/paper-trading.ts`) — in the risk pre-pass a failed quote fell back to `average_price`, making `pnlPct = 0%` so neither the hard stop-loss nor take-profit could ever trigger for that name. The pre-pass now uses the freshest live or DB snapshot price and **skips** risk evaluation when no real price is available, instead of evaluating against a fabricated break-even.
+- **Renamed/demerged NSE tickers 404’d every cycle** (`server/services/prices.ts`) — `TATAMOTORS`, `TATATELE`, and `AMARAJABAT` returned Yahoo 404 on every quote/history/snapshot call (log noise + a permanently un-priceable position). Added a verified `YAHOO_SYMBOL_REMAP` (`TATAMOTORS→TMPV`, `TATATELE→TTML`, `AMARAJABAT→ARE&M`) applied in both `fetchYahooQuote()` and `fetchYahooHistory()`. Zero `TATAMOTORS` errors since deploy.
+
+### Changed
+
+- **Anti-churn guardrails on the paper trader** (`server/services/paper-trading.ts`) — to stop fee-bleed from over-trading (185 trades / ₹3,057 fees on a ₹1L account):
+  - `CASH_RESERVE_PCT = 0.10` — the BUY sizing cash limit now reserves a 10% portfolio cash floor so the account is never ≈100% deployed (was `cash × 0.95`, which left ₹1,801 free with 10 open positions).
+  - `MIN_HOLD_MINUTES = 60` — discretionary AI **SELL**s are rejected if the position was opened < 60 min ago (prevents same-/next-cycle flip-flopping). Hard risk exits (stop-loss / take-profit / trailing) run in the pre-pass and are **exempt**.
+- **AI Chat grounded in live, real-time context** (`server/services/chat.ts`) — the assistant now also receives: live per-symbol **technicals** (RSI w/ zone, MACD bias, price-vs-20d-SMA) computed from 120-day history; per-symbol **FinBERT sentiment** (7-day avg + trend); **broad-market sentiment** (3-day FinBERT); and the user’s **paper-trading account** (equity, cash, P&L, open positions). Previously chat saw only quotes + portfolio + watchlist + predictions + news.
+- **Chat renders Markdown** (`src/pages/Chat.tsx`, `src/index.css`) — assistant replies were shown as raw plain text (literal `*`, `#`, fences). Replies are now rendered as Markdown via `marked`, **HTML-escaped first** so model output cannot inject scripts (no extra sanitiser dependency). New `.chat-prose` styles cover lists, tables, code, headings, blockquotes.
+
+### Notes
+
+- **Migration:** adds nullable `paper_positions.peak_price` (idempotent; back-fills lazily from live highs). No breaking API/schema changes.
+- **Deploy:** `npm run typecheck` + `vite build` clean; image rebuilt and redeployed; container healthy; migration applied; fixes verified live (rate-limit headers, masked config, renamed-symbol resolution, `peak_price` present).
+- **Deferred for review (catalogued, not yet implemented):** enforce strictly per-user AI keys (remove silent global fallback); remove look-ahead bias in `predictions.buildContext()` (uses today’s close); raise the 0.5% prediction-validation threshold above round-trip cost; complete `updateFeatureWeights()`; regime-aware RSI in the technical-strength score; chat token streaming (SSE); batched/parallel quote fetching + price-cache age metadata.
+
+---
+
 ## [1.6.2] — 2026-06-03
 
 Major reliability fix release. The Playground AI trader was running every cycle but **never buying or selling** — it would log `decisions:N, executed:0, errors:N` (or crash on empty AI responses). Root-caused via live log + DB analysis to a combination of two deterministic SQLite schema bugs, an AI-response-reliability gap, a missing price-history job, and a cold-start regime trap. After these fixes a live cycle on a fresh account produced 3 high-conviction BUYs and executed all 3 cleanly (`executed:3, errors:0`).

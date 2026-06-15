@@ -3,6 +3,17 @@ import { db } from '../db/index.js';
 import { logger } from '../logger.js';
 import { computeTechnicals, type TechnicalSnapshot } from './technicals.js';
 
+/**
+ * Yahoo Finance ticker remap for NSE symbols that were renamed / demerged and
+ * now 404 under their old code. Verified live against Yahoo's chart endpoint.
+ * Keyed by our internal base symbol; value is the current Yahoo base symbol.
+ */
+const YAHOO_SYMBOL_REMAP: Record<string, string> = {
+  TATAMOTORS: 'TMPV',   // demerger → Tata Motors Passenger Vehicles
+  TATATELE: 'TTML',     // Tata Teleservices (Maharashtra)
+  AMARAJABAT: 'ARE&M',  // renamed → Amara Raja Energy & Mobility
+};
+
 export interface PriceQuote {
   symbol: string;
   price: number;
@@ -23,8 +34,9 @@ export interface PriceQuote {
  * + previousClose without any auth.
  */
 export async function fetchYahooQuote(symbol: string, exchange = 'NSE'): Promise<PriceQuote | null> {
+  const base = YAHOO_SYMBOL_REMAP[symbol] ?? symbol;
   const yahooSymbol =
-    symbol.includes('.') ? symbol : exchange === 'NSE' ? `${symbol}.NS` : exchange === 'BSE' ? `${symbol}.BO` : symbol;
+    base.includes('.') ? base : exchange === 'NSE' ? `${base}.NS` : exchange === 'BSE' ? `${base}.BO` : base;
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=2d`;
     const { data } = await axios.get(url, {
@@ -67,8 +79,9 @@ export async function fetchYahooHistory(
   exchange = 'NSE',
   days = 120,
 ): Promise<OHLC[]> {
+  const base = YAHOO_SYMBOL_REMAP[symbol] ?? symbol;
   const yahooSymbol =
-    symbol.includes('.') ? symbol : exchange === 'NSE' ? `${symbol}.NS` : exchange === 'BSE' ? `${symbol}.BO` : symbol;
+    base.includes('.') ? base : exchange === 'NSE' ? `${base}.NS` : exchange === 'BSE' ? `${base}.BO` : base;
   const period2 = Math.floor(Date.now() / 1000);
   const period1 = period2 - days * 24 * 60 * 60;
   try {

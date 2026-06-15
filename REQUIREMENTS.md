@@ -39,6 +39,7 @@ Companion to [README.md](README.md) and [CHANGELOG.md](CHANGELOG.md). This docum
 - FR-A4 Sessions **must** be JWT-based, transported in HTTP-only cookies with `SameSite=Lax`. `Secure` flag **must** be set in production.
 - FR-A5 The system **must** rate-limit `/api/auth/*` to 30 requests / 15 min per IP.
 - FR-A6 Roles `Viewer < Analyst < Admin < Super Admin` **must** be enforced server-side via the `authorize(roles[])` middleware.
+- FR-A7 AI-triggering endpoints (`/api/chat/send`, `/api/predictions/generate`, `/api/predictions/top-picks`, `/api/playground/run-ai`, `/api/discovery/scan`) **must** be rate-limited (40 requests / 5 min per IP) to prevent LLM cost-explosion / DoS abuse.
 
 ### 2.2 Stocks & Market Data
 - FR-S1 Live quotes **must** be retrievable for any seeded ticker without a paid API.
@@ -90,6 +91,10 @@ Companion to [README.md](README.md) and [CHANGELOG.md](CHANGELOG.md). This docum
 - FR-PG15 Every trade (manual or AI) **must** persist a `strategy_tag` and `market_regime`. AI trades use the regime detected by `detectMarketRegime()` and the LLM-supplied strategy tag; manual trades use values supplied by the user (defaults `strategy_tag='manual'`).
 - FR-PG16 The system **must** detect the market regime each AI cycle from the median 20-bar return + breadth across the candidate universe, classify as `Bullish | Bearish | Sideways`, and inject both the regime and a regime-appropriate playbook hint into the AI system prompt.
 - FR-PG17 Closed-trade strategy P&L (per `(strategy_tag, horizon)`) **must** be exposed at `GET /api/playground/strategy-stats` and fed back into the AI prompt as a feedback signal.
+- FR-PG29 The trailing stop **must** use a persisted per-position high-water mark (`paper_positions.peak_price`, bumped on each new high), not a value derived from recent BUY prices, so the trail actually fires after a pullback.
+- FR-PG30 The risk pre-pass (stop-loss / take-profit / trailing) **must** evaluate against a real live or cached price and **must skip** a position when no real price is available — it **must not** fall back to `average_price` (which fabricates a 0% P&L and silently disables the stop-loss).
+- FR-PG31 BUY position sizing **must** reserve a portfolio cash floor (≥ 10% of total equity) so the account is never ≈100% deployed (dry-powder reserve).
+- FR-PG32 Discretionary AI **SELL** decisions **must** be rejected for positions held < 60 minutes (anti-churn). Hard risk exits (stop-loss / take-profit / trailing) are exempt.
 - FR-PG18 The Manual Trade UI **must** display live LTP, current cash, and currently-held quantity, and **must** prevent submission when a BUY would exceed available cash or a SELL would exceed held quantity. The server **must** enforce the same guards.
 - FR-PG19 The Manual Trade form **must** require a Horizon and accept an optional Strategy tag and Reason/thesis; both are persisted with the trade.
 - FR-PG20 The equity-curve chart **must** colour the area green where the value is above the starting capital and red where it is below, with a visible reference line at the starting-capital baseline.
@@ -105,6 +110,8 @@ Companion to [README.md](README.md) and [CHANGELOG.md](CHANGELOG.md). This docum
 - FR-C1 The system **must** persist all messages with role and timestamp.
 - FR-C2 Any uppercase symbol token in the user's message **must** be enriched with a live quote in the LLM prompt.
 - FR-C3 If the message references the user's portfolio (heuristic: `my|portfolio|holding|position|should i`), the LLM context **must** also include the user's open positions, cash, and last 5 predictions.
+- FR-C4 Symbol tokens **must** additionally be enriched with live technicals (RSI/MACD/SMA from recent history) and per-symbol FinBERT sentiment (7-day avg + trend); the prompt **must** also include broad-market FinBERT sentiment and the user's paper-trading account summary (equity, cash, P&L, open positions).
+- FR-C5 Assistant replies **must** be rendered as Markdown in the UI, with raw HTML escaped before formatting so model output cannot inject scripts.
 
 ### 2.8 Brokers
 - FR-B1 At minimum, **Zerodha Kite** **must** be live-integrated end-to-end (API-key save, login URL, token exchange, holdings sync, hourly auto-sync).
@@ -158,6 +165,7 @@ Companion to [README.md](README.md) and [CHANGELOG.md](CHANGELOG.md). This docum
 - NFR-S5 The boot **must** fail if `JWT_SECRET` length < 16.
 - NFR-S6 Bodies **must** be validated by Zod schemas; failures return 400 with structured `issues`.
 - NFR-S7 External API keys **must** be sent in HTTP request headers (e.g. `Authorization`, `X-Api-Key`), never appended to URL query strings where they would appear in server access logs.
+- NFR-S8 Credential values (keys matching `KEY|SECRET|TOKEN|PASSWORD`) **must** be masked (`••••••••<last4>`) in `GET /api/admin/config` responses, and the admin UI **must not** write a masked placeholder back over a stored secret.
 
 ### 3.3 Reliability
 - NFR-R1 SQLite **must** run with WAL journal, `synchronous=NORMAL`, `foreign_keys=ON`.

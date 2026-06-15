@@ -1,8 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send, Plus, MessageSquare } from 'lucide-react';
+import { marked } from 'marked';
 import { api } from '../lib/api';
 import { Button } from '../components/Button';
 import { useToast } from '../lib/toast';
+
+/**
+ * Render assistant markdown safely: escape any raw HTML first so AI output
+ * cannot inject scripts/event handlers, then let `marked` format the markdown
+ * syntax (bold, lists, code, headings, tables, links). No external sanitizer
+ * dependency required.
+ */
+function renderSafeMarkdown(src: string): string {
+  const escaped = (src || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return marked.parse(escaped, { async: false, breaks: true, gfm: true }) as string;
+}
 
 export function ChatPage() {
   const { notify } = useToast();
@@ -83,11 +98,14 @@ export function ChatPage() {
             ) : (
               messages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed ${
-                    m.role === 'user'
-                      ? 'bg-[#141414] text-[#F8F7F4]'
-                      : 'bg-[#F8F7F4] border border-[#141414]/20'
-                  }`}>{m.content}</div>
+                  {m.role === 'user' ? (
+                    <div className="max-w-[80%] px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed bg-[#141414] text-[#F8F7F4]">{m.content}</div>
+                  ) : (
+                    <div
+                      className="max-w-[80%] px-4 py-3 text-sm leading-relaxed bg-[#F8F7F4] border border-[#141414]/20 chat-prose"
+                      dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(m.content) }}
+                    />
+                  )}
                 </div>
               ))
             )}

@@ -117,11 +117,13 @@ Practice trading with virtual money. The AI can trade autonomously or you trade 
 | Control | Default (Moderate) | Effect |
 |---------|-------------------|--------|
 | Stop-Loss | 5% | Sells if position drops beyond threshold |
-| Trailing Stop | 4% from peak | Locks profit if position was up >5% then pulls back |
+| Trailing Stop | 4% from peak | Locks profit if position was up >5% then pulls back (tracked via a persisted high-water mark) |
 | Take-Profit | 25% | Sells 50% at target, trails the rest |
 | Daily Kill-Switch | 5% | Pauses all trading if daily loss exceeds threshold |
 | Position Size Cap | 20% | No single stock exceeds N% of portfolio |
+| Cash Reserve | 10% | Always keeps dry powder — never deploys 100% of capital |
 | Anti-Fixation | 2 hours | Cannot re-buy same stock within window |
+| Minimum Hold | 60 min | AI won't flip a freshly-opened position (hard risk exits exempt) |
 | Max Buys/Cycle | 3 | Quality over quantity — reduces churning |
 | Conviction Threshold | 0.70 | Only executes high-confidence trades |
 
@@ -161,15 +163,16 @@ Ask questions about stocks, sectors, markets, and your portfolio in natural lang
 - "Show me my portfolio allocation"
 - "Compare TCS and INFY fundamentals"
 
-The AI has access to: real-time quotes, your portfolio, watchlist, predictions, market news, and broker data.
+The AI has access to: real-time quotes, live technicals (RSI/MACD/SMA), FinBERT news sentiment, your portfolio, watchlist, predictions, paper-trading account (equity, cash, P&L, positions), market news, and broker data.
 
 ### Features
 - Multi-session support with auto-titled conversations
-- Live ticker injection — any stock symbol in your message auto-resolves to a live quote
-- Portfolio-aware — references your actual holdings when relevant
+- Live ticker injection — any stock symbol in your message auto-resolves to a live quote, technicals, and sentiment
+- Portfolio-aware — references your actual holdings and paper-trading P&L when relevant
+- Formatted replies — answers render as Markdown (lists, tables, emphasis)
 - Restricted to financial topics only
 
-> **Technical:** Context-injected chat with safe HTTP fetching (whitelisted hosts only). Uses the configured AI provider with streaming support.
+> **Technical:** Context-injected chat with safe HTTP fetching (whitelisted hosts only). Replies are rendered as HTML-escaped Markdown. Time-sensitive questions opt in to Arbiter real-time web search.
 
 ---
 

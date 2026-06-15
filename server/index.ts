@@ -97,6 +97,21 @@ async function main() {
   app.use('/api/auth/login', authLimiter);
   app.use('/api/auth/register', authLimiter);
 
+  // Rate limit expensive AI-triggering endpoints to prevent cost-explosion / DoS.
+  // Keyed by client IP (app sits behind a trusted proxy).
+  const aiLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    limit: 40,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many AI requests — please slow down and retry shortly.' },
+  });
+  app.use('/api/chat/send', aiLimiter);
+  app.use('/api/predictions/generate', aiLimiter);
+  app.use('/api/predictions/top-picks', aiLimiter);
+  app.use('/api/playground/run-ai', aiLimiter);
+  app.use('/api/discovery/scan', aiLimiter);
+
   // ─── No-cache for all API responses ──────────────────────────
   // Cloudflare aggressively caches JSON when no Cache-Control is set.
   // Force every /api response to bypass CDN + browser cache.

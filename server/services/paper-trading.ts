@@ -1,6 +1,6 @@
 import { db } from '../db/index.js';
 import { resolveAIConfig, aiCompleteMeta, type AICallRecord } from './ai.js';
-import { fetchYahooQuote } from './prices.js';
+import { fetchYahooQuote, latestPrice } from './prices.js';
 import { buildContext } from './predictions.js';
 import { fetchMarketNews } from './news.js';
 import { getSymbolSentiment, getMarketSentiment } from './sentiment.js';
@@ -202,6 +202,8 @@ const MAX_BUYS_PER_CYCLE = 3;         // Quality over quantity
 const TRAILING_STOP_PCT = 4;          // Trail 4% below peak
 const MIN_REWARD_RISK_RATIO = 2.0;    // Expected gain must be 2x potential loss
 const SECTOR_CAP_PCT = 30;            // Max % of total equity in any one sector
+const CASH_RESERVE_PCT = 0.10;        // Keep 10% dry powder — never deploy 100%
+const MIN_HOLD_MINUTES = 60;          // Anti-churn: AI-discretionary sells must hold >=60m (risk exits exempt)
 
 const DEFAULT_UNIVERSE = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'ITC', 'SBIN', 'LT', 'BHARTIARTL', 'MARUTI'];
 
@@ -375,12 +377,12 @@ export function executeTrade(opts: ExecuteOpts) {
         : opts.price;
       if (pos) {
         db.prepare(
-          'UPDATE paper_positions SET quantity = ?, average_price = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        ).run(newQty, newAvg, pos.id);
+          'UPDATE paper_positions SET quantity = ?, average_price = ?, peak_price = MAX(COALESCE(peak_price, ?), ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        ).run(newQty, newAvg, opts.price, opts.price, pos.id);
       } else {
         db.prepare(
-          'INSERT INTO paper_positions (account_id, stock_id, quantity, average_price) VALUES (?, ?, ?, ?)',
-        ).run(opts.accountId, opts.stockId, newQty, newAvg);
+          'INSERT INTO paper_positions (account_id, stock_id, quantity, average_price, peak_price) VALUES (?, ?, ?, ?, ?)',
+        ).run(opts.accountId, opts.stockId, newQty, newAvg, opts.price);
       }
       db.prepare('UPDATE paper_accounts SET cash = cash - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
         net,
@@ -726,21 +728,25 @@ export async function runAITraderCycle(
   let regimeInfo = detectMarketRegime(positions.map((p) => p.symbol).slice(0, 12));
   const forced: Array<{ symbol: string; reason: string }> = [];
   for (const p of positions) {
-    const ltp = ltps.get(p.symbol) ?? p.average_price;
+    // Use the freshest price available. If we have neither a live quote nor a
+    // recent DB snapshot, SKIP risk evaluation for this name — falling back to
+    // average_price would make pnl=0% and silently disable the stop-loss.
+    const ltp = ltps.get(p.symbol) ?? latestPrice(p.stock_id) ?? null;
+    if (ltp == null) continue;
     const pnlPct = ((ltp - p.average_price) / p.average_price) * 100;
 
-    // Trailing stop: check if position has moved up significantly and is now pulling back
-    // Look at peak price since entry from recent quotes
-    const peakRow = db.prepare(
-      `SELECT MAX(price) as peak FROM paper_trades
-       WHERE account_id = ? AND stock_id = ? AND side = 'BUY'
-       ORDER BY id DESC LIMIT 1`,
-    ).get(acc.id, p.stock_id) as { peak: number } | undefined;
-    const entryPeak = Math.max(p.average_price, peakRow?.peak ?? p.average_price, ltp);
+    // FP-1.6.3: persisted high-water mark. The old logic derived "peak" from the
+    // max BUY price, which collapsed to ~current price so the trailing stop never
+    // fired. We now persist peak_price per position and bump it on new highs.
+    const storedPeak = (p as any).peak_price ?? p.average_price;
+    const peakPrice = Math.max(storedPeak, ltp, p.average_price);
+    if (peakPrice > storedPeak) {
+      db.prepare('UPDATE paper_positions SET peak_price = ? WHERE id = ?').run(peakPrice, p.id);
+    }
 
     // If position was up >5% at peak but is now trailing back, use trailing stop
-    const peakGain = ((entryPeak - p.average_price) / p.average_price) * 100;
-    const drawdownFromPeak = ((entryPeak - ltp) / entryPeak) * 100;
+    const peakGain = ((peakPrice - p.average_price) / p.average_price) * 100;
+    const drawdownFromPeak = peakPrice > 0 ? ((peakPrice - ltp) / peakPrice) * 100 : 0;
 
     // FP-1.20.1: tiered trailing-stop give-back replaces the fixed 4% trail.
     // Tighter trail as profits grow so big winners aren't given back.
@@ -1230,13 +1236,29 @@ ${JSON.stringify(ctxs).slice(0, 12_000)}`;
         const pos = positionsBySymbol.get(d.symbol);
         const qty = Math.min(d.quantity, pos?.quantity ?? 0);
         if (qty <= 0) continue;
+        // Anti-churn: don't let the AI flip a freshly-opened position. Hard risk
+        // exits (stop-loss / take-profit / trailing) run in the pre-pass above and
+        // are exempt — this only gates discretionary AI sells.
+        const lastBuy = db.prepare(
+          `SELECT executed_at FROM paper_trades WHERE account_id = ? AND stock_id = ? AND side = 'BUY' ORDER BY id DESC LIMIT 1`,
+        ).get(acc.id, stock.id) as { executed_at: string } | undefined;
+        if (lastBuy) {
+          const heldMin = (Date.now() - new Date(lastBuy.executed_at.replace(' ', 'T') + 'Z').getTime()) / 60000;
+          if (heldMin >= 0 && heldMin < MIN_HOLD_MINUTES) {
+            errors.push(`Skipped SELL ${d.symbol}: held ${heldMin.toFixed(0)}m < ${MIN_HOLD_MINUTES}m min-hold (anti-churn)`);
+            continue;
+          }
+        }
         executeTrade({ accountId: acc.id, stockId: stock.id, side: 'SELL', quantity: qty, price: q.price, reason: d.reason, ai: true, horizon: d.horizon, strategy_tag: tag, market_regime: regimeInfo.regime, ...aiAttr });
       } else {
         // size to capital and per-position cap
         const existing = positionsBySymbol.get(d.symbol);
         const existingNotional = existing ? existing.quantity * q.price : 0;
         const headroom = Math.max(0, maxPosNotional - existingNotional);
-        const cashLimit = accAfter.cash * 0.95;
+        // Keep dry powder: reserve a portfolio cash floor so the account is never
+        // ~100% deployed and can still take better setups / fund exits.
+        const reserveFloor = totalEquityHint * CASH_RESERVE_PCT;
+        const cashLimit = Math.max(0, accAfter.cash - reserveFloor);
 
         // ── FP: fold the sector cap into sizing instead of hard-rejecting ──
         // The per-position cap (e.g. 33% for Aggressive) is looser than the 30%

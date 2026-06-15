@@ -244,3 +244,20 @@ html, body, #root { overflow-x: hidden; max-width: 100vw; }
 .prose-doc pre code {
   @apply bg-transparent p-0;
 }
+
+/* ── Chat assistant markdown bubble ─────────────────────────── */
+.chat-prose > :last-child { margin-bottom: 0; }
+.chat-prose p { @apply mb-2; }
+.chat-prose ul { @apply list-disc pl-5 space-y-1 mb-2; }
+.chat-prose ol { @apply list-decimal pl-5 space-y-1 mb-2; }
+.chat-prose li { @apply leading-relaxed; }
+.chat-prose strong { @apply font-bold; }
+.chat-prose em { @apply italic; }
+.chat-prose a { @apply text-indigo-700 underline; }
+.chat-prose h1, .chat-prose h2, .chat-prose h3 { @apply font-bold mt-2 mb-1; }
+.chat-prose code { @apply bg-slate-200/60 px-1.5 py-0.5 rounded text-xs font-mono text-indigo-700; }
+.chat-prose pre { @apply bg-slate-200/60 p-3 rounded overflow-x-auto mb-2; }
+.chat-prose pre code { @apply bg-transparent p-0 text-[#141414]; }
+.chat-prose table { @apply w-full text-xs border-collapse my-2; }
+.chat-prose th, .chat-prose td { @apply border border-slate-300 px-2 py-1 text-left; }
+.chat-prose blockquote { @apply border-l-2 border-slate-300 pl-3 italic opacity-80 mb-2; }

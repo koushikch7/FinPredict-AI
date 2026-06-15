@@ -294,6 +294,12 @@ export function runMigrations(): void {
   if (!has('max_daily_loss_pct')) addCol("ALTER TABLE paper_accounts ADD COLUMN max_daily_loss_pct REAL DEFAULT 5");
   if (!has('paused_until')) addCol("ALTER TABLE paper_accounts ADD COLUMN paused_until DATETIME");
 
+  // ── v1.6.3: per-position peak price → working trailing-stop high-water mark ──
+  const posCols = db.prepare("PRAGMA table_info(paper_positions)").all() as Array<{ name: string }>;
+  if (!posCols.some((c) => c.name === 'peak_price')) {
+    addCol("ALTER TABLE paper_positions ADD COLUMN peak_price REAL");
+  }
+
   // ── v1.2: stocks.tier (cap-tier) for cross-cap discovery scanning ──
   const stockCols = db.prepare("PRAGMA table_info(stocks)").all() as Array<{ name: string }>;
   if (!stockCols.some((c) => c.name === 'tier')) {

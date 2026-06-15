@@ -15,8 +15,20 @@ export const adminRouter = Router();
 adminRouter.use(authenticate);
 
 // ─── Configuration ──────────────────────────────────────────────
+const isSecretKey = (k: string) => /KEY|SECRET|TOKEN|PASSWORD/i.test(k);
 adminRouter.get('/config', authorize(['Admin', 'Super Admin']), (_req, res) => {
-  res.json(configStore.getAll());
+  // SECURITY: never return secret values in plaintext. Mask anything that
+  // looks like a credential so it cannot be read back from the API response,
+  // browser DOM, or network tab. The UI shows the mask as a placeholder and
+  // only writes a new value when the admin actually types one.
+  const masked = configStore.getAll().map((c) => {
+    const secret = isSecretKey(c.key);
+    if (secret && c.value) {
+      return { ...c, value: `••••••••${c.value.slice(-4)}`, is_secret: true, has_value: true };
+    }
+    return { ...c, is_secret: secret, has_value: !!c.value };
+  });
+  res.json(masked);
 });
 
 const ConfigSchema = z.object({ key: z.string().min(1), value: z.string(), category: z.string().optional() });

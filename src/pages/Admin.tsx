@@ -84,9 +84,16 @@ export function AdminPage() {
                   <div key={c.key}>
                     <label className="col-header block mb-1">{c.key.replace(/_/g, ' ')}</label>
                     <Input
-                      type={c.key.includes('KEY') || c.key.includes('SECRET') || c.key.includes('TOKEN') ? 'password' : 'text'}
-                      defaultValue={c.value}
-                      onBlur={(e) => setCfg(c.key, (e.target as HTMLInputElement).value, c.category)}
+                      type={c.is_secret ? 'password' : 'text'}
+                      defaultValue={c.is_secret ? '' : c.value}
+                      placeholder={c.is_secret && c.has_value ? c.value : undefined}
+                      onBlur={(e) => {
+                        const v = (e.target as HTMLInputElement).value;
+                        // Never write the masked placeholder back over a real secret —
+                        // only save a secret when the admin actually types a new value.
+                        if (c.is_secret && !v) return;
+                        setCfg(c.key, v, c.category);
+                      }}
                     />
                   </div>
                 ))}

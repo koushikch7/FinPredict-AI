@@ -44,7 +44,7 @@ FinPredict-AI is a complete, self-hosted investment terminal:
 - Username + password (bcrypt, 12 rounds), JWT in HTTP-only cookies (`SameSite=Lax`; `Secure` only in prod).
 - Roles: **Viewer · Analyst · Admin · Super Admin**.
 - First registered user requesting an admin role is auto-promoted to Super Admin (gated by `ALLOW_FIRST_ADMIN_REGISTRATION`).
-- Rate-limited auth routes (30 req / 15 min per IP).
+- Rate-limited auth routes (30 req / 15 min per IP) and AI endpoints (40 req / 5 min per IP).
 - Token TTL: 24 h.
 
 ### 2. Stocks, Live Prices & Technicals
@@ -96,8 +96,9 @@ FinPredict-AI is a complete, self-hosted investment terminal:
 
 ### 7. AI Chat
 - Multi-session sidebar with auto-titled sessions.
-- Live ticker injection: any uppercase symbol token in your message is auto-resolved to a live quote.
-- **Portfolio-aware** — when the user's question references their portfolio, the assistant also receives open positions + cash + recent predictions as context.
+- Live ticker injection: any uppercase symbol token in your message is auto-resolved to a live quote, **live technicals (RSI/MACD/SMA), and FinBERT sentiment**.
+- **Portfolio-aware** — the assistant receives open positions + cash + recent predictions, the user's **paper-trading account (equity, cash, P&L, positions)**, and **broad-market FinBERT sentiment** as grounding context.
+- **Markdown rendering** — replies render as formatted Markdown (lists, tables, code, emphasis), HTML-escaped first so model output cannot inject scripts.
 - All messages persisted.
 
 ### 8. News Aggregator + FinBERT Sentiment Analysis
@@ -148,6 +149,9 @@ The paper-trader respects four risk knobs per user:
 - Defaults derived from `risk_level` (Conservative · Moderate · Aggressive).
 - Editable from Playground "AI Trading Settings" panel.
 - Stop-loss / take-profit evaluated **before** AI decisions each cycle; kill-switch evaluated first.
+- **Trailing stop** uses a persisted per-position `peak_price` high-water mark (tiered give-back) so winners aren't given back; risk pre-pass **skips** (never fabricates) a price when no live/cached quote is available, so a stale-quote symbol can't silently disable its stop-loss.
+- **Dry-powder reserve** — BUY sizing keeps a 10 % portfolio cash floor (never ≈100 % deployed).
+- **Anti-churn** — discretionary AI SELLs require a ≥ 60-min hold (hard risk exits exempt); combined with the rolling 120-min anti-fixation BUY guard to curb fee-bleed from over-trading.
 
 ### 13. Top-Picks Scanner (Intelligent — v1.1)
 `POST /api/predictions/top-picks` runs Balanced-strategy analysis on the user's playground universe + watchlist (deduped) and returns the top N (default 5) ranked by `confidence × expected_move`. Each pick is also persisted as a normal prediction so it appears in history & is auto-validated. Surfaced via the **"Find Top Picks"** button on the Predictions page.
@@ -345,8 +349,8 @@ GET  /admin/me/ai          POST /admin/me/ai            POST /admin/me/ai/test
 ---
 
 ## Security
-- Helmet · express-rate-limit · zod-validated bodies · bcrypt-12 · cookie `SameSite=Lax` (`Secure` in prod) · CORS with credentials.
-- AI/broker secrets stored in DB never returned to the client; only the *configured* boolean is exposed.
+- Helmet · express-rate-limit (auth + AI endpoints) · zod-validated bodies · bcrypt-12 · cookie `SameSite=Lax` (`Secure` in prod) · CORS with credentials.
+- AI/broker secrets are never returned to the client in plaintext — `GET /api/admin/config` masks credential values (`••••••••<last4>`) and the Admin UI never writes the mask back over a real key.
 - All SQL is parameterised (better-sqlite3 prepared statements).
 - No client-side `process.env` leakage from Vite.
 
