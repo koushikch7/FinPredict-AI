@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FinPredict AI — AI-Powered Indian Stock Market Intelligence</title>
+<meta name="description" content="FinPredict AI is a self-hosted, full-stack investment intelligence platform for the Indian stock market (NSE/BSE). Features AI-powered predictions, autonomous paper trading, FinBERT sentiment analysis, 30+ technical indicators, and Zerodha broker integration." />
+<meta name="keywords" content="stock market, indian stocks, nse, bse, ai predictions, finbert, sentiment analysis, technical analysis, paper trading, zerodha, algorithmic trading, investment, react, typescript, nodejs" />
+<meta name="author" content="Koushik Chalasani" />
+<!-- Open Graph -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="FinPredict AI — Indian Stock Market Intelligence" />
+<meta property="og:description" content="AI-powered predictions, paper trading, FinBERT sentiment, 30+ indicators, Zerodha integration — fully self-hosted." />
+<meta property="og:url" content="https://koushikch7.github.io/FinPredict-AI/" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="FinPredict AI — Indian Stock Market Intelligence" />
+<meta name="twitter:description" content="AI-powered predictions for NSE/BSE. Self-hosted, enterprise-grade." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📈%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{
+    --bg:#0a0e1a; --bg2:#0f1525; --card:#141b2e; --card2:#1a2236;
+    --border:#243049; --border2:#2e3b58;
+    --txt:#e6ecf7; --muted:#9aa8c4; --dim:#6b7896;
+    --brand:#10b981; --brand2:#06b6d4; --accent:#22d3ee;
+    --green:#34d399; --amber:#fbbf24; --red:#f87171; --purple:#a78bfa;
+    --radius:14px; --maxw:1160px;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.65;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.88em}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  .muted{color:var(--muted)} .dim{color:var(--dim)}
+
+  /* ---------- nav ---------- */
+  header.nav{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+  .nav-inner{display:flex;align-items:center;gap:18px;height:60px}
+  .logo{font-weight:800;font-size:1.18rem;letter-spacing:-.02em;display:flex;align-items:center;gap:9px}
+  .logo .v{font-size:.62rem;font-weight:700;color:var(--brand2);border:1px solid var(--border2);border-radius:20px;padding:2px 8px;margin-left:4px}
+  .nav-links{display:flex;gap:22px;margin-left:auto;align-items:center}
+  .nav-links a{color:var(--muted);font-size:.92rem;font-weight:500}
+  .nav-links a:hover{color:var(--txt);text-decoration:none}
+  .btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:9px 16px;font-weight:600;font-size:.9rem;cursor:pointer;border:1px solid transparent;transition:.15s}
+  .btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}
+  .btn-primary:hover{filter:brightness(1.1);text-decoration:none}
+  .btn-ghost{background:var(--card);border-color:var(--border2);color:var(--txt)}
+  .btn-ghost:hover{background:var(--card2);text-decoration:none}
+  @media(max-width:860px){.nav-links a:not(.btn){display:none}}
+
+  /* ---------- hero ---------- */
+  .hero{position:relative;overflow:hidden;padding:78px 0 56px;border-bottom:1px solid var(--border)}
+  .hero::before{content:"";position:absolute;inset:0;background:
+    radial-gradient(1100px 480px at 72% -8%,rgba(16,185,129,.20),transparent 60%),
+    radial-gradient(800px 420px at 8% 12%,rgba(6,182,212,.12),transparent 60%);pointer-events:none}
+  .hero-grid{position:relative;display:grid;grid-template-columns:1.15fr .85fr;gap:46px;align-items:center}
+  @media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:30px}}
+  .badge-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+  .pill{font-size:.74rem;font-weight:600;padding:5px 11px;border-radius:30px;border:1px solid var(--border2);background:var(--card);color:var(--muted)}
+  .pill.live{color:var(--green);border-color:rgba(52,211,153,.35)}
+  .pill.live::before{content:"●";margin-right:6px;font-size:.7em;vertical-align:middle}
+  h1.title{font-size:clamp(2.1rem,5vw,3.5rem);font-weight:850;line-height:1.05;letter-spacing:-.03em;margin-bottom:18px}
+  h1.title .grad{background:linear-gradient(120deg,var(--accent),var(--brand));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .lead{font-size:1.16rem;color:var(--muted);max-width:38em;margin-bottom:28px}
+  .cta{display:flex;flex-wrap:wrap;gap:12px}
+  .hero-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 24px 60px -28px rgba(0,0,0,.7)}
+  .hero-card .bar{display:flex;align-items:center;gap:7px;padding:11px 14px;background:var(--card2);border-bottom:1px solid var(--border)}
+  .hero-card .bar i{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .dot-r{background:#ff5f57}.dot-y{background:#febc2e}.dot-g{background:#28c840}
+  .hero-card .bar span{margin-left:8px;font-size:.78rem;color:var(--dim);font-family:var(--mono)}
+  .hero-card pre{margin:0;padding:18px;font-family:var(--mono);font-size:.82rem;line-height:1.7;overflow-x:auto}
+  .tk-com{color:var(--dim)} .tk-key{color:var(--purple)} .tk-str{color:var(--green)} .tk-fn{color:var(--accent)} .tk-var{color:#f0a868}
+
+  /* ---------- stat strip ---------- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:46px 0}
+  @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--card);padding:22px 18px;text-align:center}
+  .stat b{display:block;font-size:1.8rem;font-weight:800;background:linear-gradient(120deg,var(--accent),var(--brand));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .stat span{font-size:.82rem;color:var(--muted)}
+
+  /* ---------- sections ---------- */
+  section{padding:64px 0;border-bottom:1px solid var(--border)}
+  .sec-head{text-align:center;max-width:42em;margin:0 auto 44px}
+  .kicker{font-size:.78rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand)}
+  h2{font-size:clamp(1.6rem,3.4vw,2.3rem);font-weight:800;letter-spacing:-.02em;margin:10px 0 12px}
+  .sec-head p{color:var(--muted);font-size:1.05rem}
+
+  .grid{display:grid;gap:18px}
+  .g3{grid-template-columns:repeat(3,1fr)} .g2{grid-template-columns:repeat(2,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:900px){.g3,.g4{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:620px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .feature{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px;transition:.18s}
+  .feature:hover{border-color:var(--border2);transform:translateY(-3px);background:var(--card2)}
+  .feature .ic{font-size:1.5rem;margin-bottom:12px}
+  .feature h3{font-size:1.05rem;font-weight:700;margin-bottom:7px}
+  .feature p{font-size:.92rem;color:var(--muted)}
+
+  /* ---------- how it works ---------- */
+  .flow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:stretch}
+  @media(max-width:860px){.flow{grid-template-columns:1fr 1fr}}
+  .flow .step{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;position:relative}
+  .flow .step b{display:block;color:var(--accent);font-size:.74rem;font-weight:700;margin-bottom:6px}
+  .flow .step h4{font-size:.96rem;margin-bottom:5px}
+  .flow .step p{font-size:.84rem;color:var(--muted)}
+
+  /* ---------- tables ---------- */
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:560px}
+  th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--border)}
+  th{background:var(--card2);font-weight:600;color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
+  tr:last-child td{border-bottom:none}
+  td code{background:var(--bg2);padding:2px 7px;border-radius:6px;border:1px solid var(--border)}
+  .tag{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:20px}
+  .tag.get{background:rgba(52,211,153,.14);color:var(--green)}
+  .tag.post{background:rgba(99,102,241,.16);color:#a5b4fc}
+  .tag.del{background:rgba(248,113,113,.14);color:var(--red)}
+  .tag.patch{background:rgba(251,191,36,.14);color:var(--amber)}
+  .tag.free{background:rgba(52,211,153,.14);color:var(--green)}
+
+  /* ---------- code tabs ---------- */
+  .codebox{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .tabs{display:flex;gap:2px;background:var(--card2);border-bottom:1px solid var(--border);padding:0 6px;flex-wrap:wrap}
+  .tab{padding:11px 16px;font-size:.86rem;font-weight:600;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent}
+  .tab.active{color:var(--txt);border-bottom-color:var(--brand)}
+  .tab:hover{color:var(--txt)}
+  .panel{display:none;position:relative}
+  .panel.active{display:block}
+  .panel pre{margin:0;padding:20px;font-family:var(--mono);font-size:.82rem;line-height:1.7;overflow-x:auto}
+  .copy{position:absolute;top:10px;right:10px;background:var(--bg2);border:1px solid var(--border2);color:var(--muted);border-radius:7px;padding:5px 11px;font-size:.74rem;cursor:pointer;font-weight:600}
+  .copy:hover{color:var(--txt);background:var(--card2)}
+
+  .note{background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(6,182,212,.05));border:1px solid var(--border2);border-left:3px solid var(--brand);border-radius:10px;padding:14px 18px;font-size:.92rem;color:var(--muted);margin:18px 0}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  @media(max-width:760px){.two{grid-template-columns:1fr}}
+  ul.clean{list-style:none}
+  ul.clean li{padding:7px 0;padding-left:26px;position:relative;color:var(--muted);font-size:.95rem}
+  ul.clean li::before{content:"✓";position:absolute;left:0;color:var(--green);font-weight:700}
+
+  /* ---------- footer ---------- */
+  footer{padding:40px 0;text-align:center;color:var(--dim);font-size:.88rem}
+  .flinks{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-bottom:18px}
+  .flinks a{color:var(--muted)}
+  .flinks a:hover{color:var(--txt)}
+
+  /* ---------- comparison ---------- */
+  .compare td:first-child{font-weight:600}
+  .compare .yes{color:var(--green)}
+  .compare .no{color:var(--red)}
+  .compare .partial{color:var(--amber)}
+</style>
+</head>
+<body>
+
+<!-- ===================== NAV ===================== -->
+<header class="nav">
+  <div class="wrap nav-inner">
+    <div class="logo">📈 FinPredict AI<span class="v">v1.0.0</span></div>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#coverage">Coverage</a>
+      <a href="#api">API</a>
+      <a href="#quickstart">Quick Start</a>
+      <a class="btn btn-ghost" href="FinPredict-AI.postman_collection.json" download>⬇ Postman</a>
+      <a class="btn btn-primary" href="https://github.com/koushikch7/FinPredict-AI" target="_blank" rel="noopener">★ GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ===================== HERO ===================== -->
+<div class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="badge-row">
+        <span class="pill live">Open Source</span>
+        <span class="pill">TypeScript</span>
+        <span class="pill">React 19</span>
+        <span class="pill">Node.js</span>
+      </div>
+      <h1 class="title">AI-powered intelligence for <span class="grad">Indian stocks.</span></h1>
+      <p class="lead">FinPredict AI is a self-hosted, full-stack investment intelligence platform for NSE/BSE. It combines multi-provider AI with FinBERT sentiment analysis, 30+ technical indicators, autonomous paper trading, and Zerodha broker integration — so you make data-driven decisions without paying for expensive APIs.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="#quickstart">🚀 Get started</a>
+        <a class="btn btn-ghost" href="#api">📖 API reference</a>
+        <a class="btn btn-ghost" href="FinPredict-AI.postman_collection.json" download>⬇ Postman collection</a>
+      </div>
+    </div>
+    <div class="hero-card">
+      <div class="bar"><i class="dot-r"></i><i class="dot-y"></i><i class="dot-g"></i><span>predictions.ts</span></div>
+<pre><span class="tk-com">// Get AI predictions for any stock</span>
+<span class="tk-key">const</span> response = <span class="tk-key">await</span> <span class="tk-fn">fetch</span>(<span class="tk-str">"/api/predictions/RELIANCE.NS"</span>, {
+  headers: { <span class="tk-str">"Authorization"</span>: <span class="tk-str">`Bearer ${token}`</span> }
+});
+
+<span class="tk-key">const</span> data = <span class="tk-key">await</span> response.<span class="tk-fn">json</span>();
+<span class="tk-com">// → {</span>
+<span class="tk-com">//     signal: "BUY",</span>
+<span class="tk-com">//     conviction: 78,</span>
+<span class="tk-com">//     targets: { short: 2950, medium: 3100 },</span>
+<span class="tk-com">//     sentiment: "bullish",</span>
+<span class="tk-com">//     indicators: { rsi: 42, macd: "bullish" }</span>
+<span class="tk-com">//   }</span></pre>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- ===================== STATS ===================== -->
+  <div class="stats">
+    <div class="stat"><b>166+</b><span>NSE/BSE stocks pre-seeded</span></div>
+    <div class="stat"><b>30+</b><span>Technical indicators</span></div>
+    <div class="stat"><b>6</b><span>AI investment strategies</span></div>
+    <div class="stat"><b>70+</b><span>REST API endpoints</span></div>
+  </div>
+</div>
+
+<!-- ===================== FEATURES ===================== -->
+<section id="features" class="anchor">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Capabilities</div>
+      <h2>Everything an investment platform should have — and more</h2>
+      <p>Built for serious investors who want enterprise-grade analytics without the enterprise price tag. Self-hosted, observable, and fully customizable.</p>
+    </div>
+    <div class="grid g3">
+      <div class="feature"><div class="ic">🤖</div><h3>Multi-Provider AI Predictions</h3><p>Ensemble predictions from Gemini, OpenAI, and Arbiter gateway. 6 strategies × 4 time horizons with conviction scoring and price targets.</p></div>
+      <div class="feature"><div class="ic">🧠</div><h3>FinBERT Sentiment Analysis</h3><p>NLP-powered news sentiment using HuggingFace's FinBERT model. Real-time analysis of financial news with bullish/bearish/neutral classification.</p></div>
+      <div class="feature"><div class="ic">📊</div><h3>30+ Technical Indicators</h3><p>RSI, MACD, Bollinger Bands, ADX, ATR, Stochastic, Williams %R, CCI, OBV, VWAP, Ichimoku Cloud, Parabolic SAR, and more.</p></div>
+      <div class="feature"><div class="ic">📈</div><h3>Autonomous Paper Trading</h3><p>Virtual ₹1,00,000 portfolio with realistic brokerage charges (0.03% + ₹20 per order). Track P&L, win rate, and trade history.</p></div>
+      <div class="feature"><div class="ic">💬</div><h3>AI Chat Assistant</h3><p>Portfolio-aware conversations with live market data context. Ask about your holdings, get analysis, or explore new opportunities.</p></div>
+      <div class="feature"><div class="ic">🔗</div><h3>Zerodha Broker Integration</h3><p>OAuth 2.0 with Kite Connect. Auto-sync holdings, view positions, and compare paper vs real portfolio performance.</p></div>
+      <div class="feature"><div class="ic">🔍</div><h3>Stock Discovery Scanner</h3><p>Find opportunities with preset filters: momentum breakouts, oversold bounces, volume spikes, and earnings surprises.</p></div>
+      <div class="feature"><div class="ic">📱</div><h3>PWA Mobile App</h3><p>Installable progressive web app with offline support. Full functionality on any device — phone, tablet, or desktop.</p></div>
+      <div class="feature"><div class="ic">🆕</div><h3>IPO Analysis</h3><p>Track upcoming, current, and listed IPOs. AI-generated analysis with subscription recommendations and listing gain predictions.</p></div>
+      <div class="feature"><div class="ic">⏰</div><h3>Background Jobs</h3><p>Automated daily predictions, market-hours data refresh, and scheduled portfolio rebalancing suggestions.</p></div>
+      <div class="feature"><div class="ic">💾</div><h3>Automated Backups</h3><p>Daily SQLite backups with configurable retention. One-click restore and export capabilities.</p></div>
+      <div class="feature"><div class="ic">🔐</div><h3>Enterprise Security</h3><p>bcrypt hashing, JWT + HTTP-only cookies, rate limiting, Helmet headers, Zod validation, and secret masking in admin UI.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== HOW IT WORKS ===================== -->
+<section id="how" class="anchor">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Architecture</div>
+      <h2>How a prediction flows</h2>
+      <p>From stock symbol to actionable insight — with technical analysis, sentiment, and AI reasoning at every step.</p>
+    </div>
+    <div class="flow">
+      <div class="step"><b>STEP 1</b><h4>Fetch Market Data</h4><p>Yahoo Finance v8 API provides OHLCV data, fundamentals, and historical prices — no API key required.</p></div>
+      <div class="step"><b>STEP 2</b><h4>Compute Indicators</h4><p>30+ technical indicators calculated: RSI, MACD, Bollinger, ADX, ATR, and more. Pattern recognition included.</p></div>
+      <div class="step"><b>STEP 3</b><h4>Analyze Sentiment</h4><p>FinBERT processes recent news headlines. Scores aggregated into bullish/bearish/neutral with confidence.</p></div>
+      <div class="step"><b>STEP 4</b><h4>AI Ensemble</h4><p>Multiple AI providers analyze technicals + sentiment. Strategies: Momentum, Value, Growth, GARP, Swing, Contrarian.</p></div>
+      <div class="step"><b>STEP 5</b><h4>Conviction Score</h4><p>Signals aggregated with weighted voting. Final BUY/SELL/HOLD with conviction %, price targets, and stop-loss.</p></div>
+    </div>
+    <div class="note">⚙️ <strong>Stack:</strong> React 19 · TypeScript 5 · Vite · Tailwind 4 · Express 4 · SQLite (WAL mode) · Docker. Single container, one <code>.env</code>, port 3000. Background jobs handle daily predictions, market-hours refresh, and automated backups.</div>
+  </div>
+</section>
+
+<!-- ===================== COMPARISON ===================== -->
+<section id="compare" class="anchor">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Why FinPredict AI</div>
+      <h2>How it compares to alternatives</h2>
+      <p>See how FinPredict AI stacks up against popular Indian stock market platforms.</p>
+    </div>
+    <div class="tbl-wrap">
+      <table class="compare">
+        <thead><tr><th>Feature</th><th>FinPredict AI</th><th>Zerodha Kite</th><th>TradingView</th><th>Smallcase</th></tr></thead>
+        <tbody>
+          <tr><td>Market Data Cost</td><td class="yes">Free (Yahoo Finance)</td><td class="partial">Included (live)</td><td class="no">Paid plans</td><td class="no">Paid plans</td></tr>
+          <tr><td>AI Predictions</td><td class="yes">Multi-provider ensemble</td><td class="no">None</td><td class="no">None</td><td class="partial">Basic signals</td></tr>
+          <tr><td>Sentiment Analysis</td><td class="yes">FinBERT NLP</td><td class="no">None</td><td class="partial">Community</td><td class="no">None</td></tr>
+          <tr><td>Paper Trading</td><td class="yes">Full simulation</td><td class="partial">Basic</td><td class="yes">Yes</td><td class="no">None</td></tr>
+          <tr><td>Technical Indicators</td><td class="yes">30+ built-in</td><td class="yes">Yes</td><td class="yes">400+</td><td class="no">Limited</td></tr>
+          <tr><td>Self-Hosted</td><td class="yes">100% private</td><td class="no">Cloud only</td><td class="no">Cloud only</td><td class="no">Cloud only</td></tr>
+          <tr><td>API Access</td><td class="yes">70+ endpoints</td><td class="partial">Paid Kite API</td><td class="partial">Paid API</td><td class="no">None</td></tr>
+          <tr><td>NSE/BSE Focus</td><td class="yes">First-class</td><td class="yes">First-class</td><td class="partial">Global</td><td class="yes">First-class</td></tr>
+          <tr><td>Deployment</td><td class="yes">Single Docker</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>Cost</td><td class="yes">Free / Open Source</td><td class="partial">Free + paid</td><td class="no">$15-60/mo</td><td class="no">0.5-1% AUM</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== COVERAGE ===================== -->
+<section id="coverage" class="anchor">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Market Coverage</div>
+      <h2>166+ NSE/BSE stocks pre-seeded</h2>
+      <p>Large caps, mid caps, sector leaders, and popular ETFs. Add any symbol from the UI.</p>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Category</th><th>Examples</th><th>Count</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Large Cap</strong></td><td>RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK, BHARTIARTL, ITC, KOTAKBANK, LT, AXISBANK</td><td><span class="tag free">30+</span></td></tr>
+          <tr><td><strong>Mid Cap</strong></td><td>TATAMOTORS, ZOMATO, PAYTM, POLICYBZR, NYKAA, PNB, IRFC, ADANIENT, JIOFIN</td><td><span class="tag free">40+</span></td></tr>
+          <tr><td><strong>Banking & Finance</strong></td><td>SBIN, KOTAKBANK, HDFCBANK, ICICIBANK, AXISBANK, BAJFINANCE, BAJAJFINSV</td><td><span class="tag free">20+</span></td></tr>
+          <tr><td><strong>IT & Tech</strong></td><td>TCS, INFY, WIPRO, HCLTECH, TECHM, LTIM, MPHASIS, COFORGE, PERSISTENT</td><td><span class="tag free">15+</span></td></tr>
+          <tr><td><strong>Pharma & Healthcare</strong></td><td>SUNPHARMA, DRREDDY, CIPLA, DIVISLAB, BIOCON, LUPIN, AUROPHARMA</td><td><span class="tag free">15+</span></td></tr>
+          <tr><td><strong>Auto & Manufacturing</strong></td><td>TATAMOTORS, M&M, MARUTI, HEROMOTOCO, BAJAJ-AUTO, EICHERMOT, ASHOKLEY</td><td><span class="tag free">15+</span></td></tr>
+          <tr><td><strong>Energy & Metals</strong></td><td>RELIANCE, ONGC, IOC, BPCL, COALINDIA, TATASTEEL, HINDALCO, VEDL, JSWSTEEL</td><td><span class="tag free">15+</span></td></tr>
+          <tr><td><strong>ETFs</strong></td><td>NIFTYBEES, BANKBEES, GOLDBEES, LIQUIDBEES, JUNIORBEES, SETFNIF50</td><td><span class="tag free">10+</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note" style="margin-top:26px">💡 <strong>Add any symbol:</strong> Search and add any NSE/BSE stock from the UI. Data fetched automatically from Yahoo Finance.</div>
+  </div>
+</section>
+
+<!-- ===================== QUICK START ===================== -->
+<section id="quickstart" class="anchor">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Get running in 5 minutes</div>
+      <h2>Quick start</h2>
+      <p>One command to clone, one to configure, one to launch. Docker does the rest.</p>
+    </div>
+    <div class="codebox">
+      <div class="tabs">
+        <div class="tab active" data-t="qs-docker">🐳 Docker (recommended)</div>
+        <div class="tab" data-t="qs-env">⚙️ Configure .env</div>
+        <div class="tab" data-t="qs-local">💻 Local Development</div>
+        <div class="tab" data-t="qs-verify">✅ Verify</div>
+      </div>
+      <div class="panel active" id="qs-docker">
+        <button class="copy">Copy</button>
+<pre><span class="tk-com"># 1. Clone the repository</span>
+git clone https://github.com/koushikch7/FinPredict-AI.git
+cd FinPredict-AI
+
+<span class="tk-com"># 2. Configure environment</span>
+cp .env.example .env
+nano .env  <span class="tk-com"># Add your AI provider keys</span>
+
+<span class="tk-com"># 3. Build and run</span>
+docker build -t finpredict-ai .
+docker run -d --name finpredict \
+  -p 3000:3000 \
+  --env-file .env \
+  -v finpredict-data:/app/data \
+  finpredict-ai
+
+<span class="tk-com"># Open the dashboard</span>
+open http://localhost:3000</pre>
+      </div>
+      <div class="panel" id="qs-env">
+        <button class="copy">Copy</button>
+<pre><span class="tk-com"># Required: At least one AI provider</span>
+GEMINI_API_KEY=AIzaSy...your-key
+<span class="tk-com"># Or use Arbiter gateway for multi-provider routing</span>
+ARBITER_API_KEY=gwtk_your_arbiter_token
+ARBITER_BASE_URL=https://your-arbiter-host/v1
+
+<span class="tk-com"># Optional: OpenAI for additional coverage</span>
+OPENAI_API_KEY=sk-...your-key
+
+<span class="tk-com"># Security (generate your own!)</span>
+JWT_SECRET=your-256-bit-secret
+COOKIE_SECRET=your-256-bit-secret
+
+<span class="tk-com"># Optional: Zerodha broker integration</span>
+KITE_API_KEY=your-kite-api-key
+KITE_API_SECRET=your-kite-api-secret
+
+<span class="tk-com"># Optional: FinBERT sentiment (HuggingFace)</span>
+HF_API_KEY=hf_...your-key</pre>
+      </div>
+      <div class="panel" id="qs-local">
+        <button class="copy">Copy</button>
+<pre><span class="tk-com"># Prerequisites: Node.js 20+, npm 10+</span>
+
+<span class="tk-com"># 1. Install dependencies</span>
+npm install
+
+<span class="tk-com"># 2. Start development server (hot reload)</span>
+npm run dev
+
+<span class="tk-com"># 3. Build for production</span>
+npm run build
+
+<span class="tk-com"># 4. Start production server</span>
+npm start
+
+<span class="tk-com"># Server runs on http://localhost:3000</span></pre>
+      </div>
+      <div class="panel" id="qs-verify">
+        <button class="copy">Copy</button>
+<pre><span class="tk-com"># Health check</span>
+curl http://localhost:3000/api/health
+<span class="tk-com"># → {"status":"ok","version":"1.0.0","uptime":12345}</span>
+
+<span class="tk-com"># Register a user</span>
+curl -X POST http://localhost:3000/api/auth/register \
+  -H <span class="tk-str">"Content-Type: application/json"</span> \
+  -d <span class="tk-str">'{"username":"demo","email":"demo@example.com","password":"SecurePass123!"}'</span>
+
+<span class="tk-com"># Login and get token</span>
+curl -X POST http://localhost:3000/api/auth/login \
+  -H <span class="tk-str">"Content-Type: application/json"</span> \
+  -d <span class="tk-str">'{"email":"demo@example.com","password":"SecurePass123!"}'</span>
+
+<span class="tk-com"># Get predictions (with Bearer token)</span>
+curl http://localhost:3000/api/predictions/RELIANCE.NS \
+  -H <span class="tk-str">"Authorization: Bearer YOUR_JWT_TOKEN"</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== API ===================== -->
+<section id="api" class="anchor">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Developer Reference</div>
+      <h2>API endpoints</h2>
+      <p>RESTful API with JWT authentication. All <code>/api/*</code> routes require <code>Authorization: Bearer &lt;token&gt;</code> unless marked public.</p>
+    </div>
+
+    <h3 style="margin:0 0 14px;font-size:1.1rem">Authentication</h3>
+    <div class="tbl-wrap" style="margin-bottom:30px">
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag post">POST</span></td><td><code>/api/auth/register</code></td><td>Register new user (public)</td></tr>
+          <tr><td><span class="tag post">POST</span></td><td><code>/api/auth/login</code></td><td>Login and get JWT token (public)</td></tr>
+          <tr><td><span class="tag post">POST</span></td><td><code>/api/auth/logout</code></td><td>Logout and clear cookie</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/auth/me</code></td><td>Get current user profile</td></tr>
+          <tr><td><span class="tag patch">PATCH</span></td><td><code>/api/auth/me</code></td><td>Update profile settings</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:0 0 14px;font-size:1.1rem">Stocks & Market Data</h3>
+    <div class="tbl-wrap" style="margin-bottom:30px">
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/stocks</code></td><td>List all tracked stocks with latest prices</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/stocks/:symbol</code></td><td>Get stock details, fundamentals, history</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/stocks/:symbol/chart</code></td><td>OHLCV data for charts (1d, 5d, 1mo, 3mo, 1y, 5y)</td></tr>
+          <tr><td><span class="tag post">POST</span></td><td><code>/api/stocks</code></td><td>Add new stock to watchlist</td></tr>
+          <tr><td><span class="tag del">DEL</span></td><td><code>/api/stocks/:symbol</code></td><td>Remove stock from watchlist</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:0 0 14px;font-size:1.1rem">AI Predictions</h3>
+    <div class="tbl-wrap" style="margin-bottom:30px">
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/predictions/:symbol</code></td><td>Get latest AI prediction with technicals & sentiment</td></tr>
+          <tr><td><span class="tag post">POST</span></td><td><code>/api/predictions/:symbol/generate</code></td><td>Generate fresh prediction (force refresh)</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/predictions</code></td><td>List all predictions with filters</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/predictions/history/:symbol</code></td><td>Prediction history with accuracy tracking</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:0 0 14px;font-size:1.1rem">Paper Trading</h3>
+    <div class="tbl-wrap" style="margin-bottom:30px">
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/paper-trading/portfolio</code></td><td>Get paper portfolio summary</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/paper-trading/positions</code></td><td>List open positions</td></tr>
+          <tr><td><span class="tag post">POST</span></td><td><code>/api/paper-trading/buy</code></td><td>Execute paper buy order</td></tr>
+          <tr><td><span class="tag post">POST</span></td><td><code>/api/paper-trading/sell</code></td><td>Execute paper sell order</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/paper-trading/trades</code></td><td>Trade history with P&L</td></tr>
+          <tr><td><span class="tag post">POST</span></td><td><code>/api/paper-trading/reset</code></td><td>Reset paper portfolio to ₹1L</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:0 0 14px;font-size:1.1rem">Technical Analysis</h3>
+    <div class="tbl-wrap" style="margin-bottom:30px">
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/technicals/:symbol</code></td><td>All 30+ indicators for a stock</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/technicals/:symbol/:indicator</code></td><td>Specific indicator (rsi, macd, bollinger, etc.)</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/technicals/:symbol/patterns</code></td><td>Detected chart patterns</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:0 0 14px;font-size:1.1rem">Sentiment & News</h3>
+    <div class="tbl-wrap" style="margin-bottom:30px">
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/sentiment/:symbol</code></td><td>FinBERT sentiment analysis</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/news/:symbol</code></td><td>Recent news headlines with sentiment</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/news</code></td><td>Market-wide news feed</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:0 0 14px;font-size:1.1rem">AI Chat Assistant</h3>
+    <div class="tbl-wrap" style="margin-bottom:30px">
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag post">POST</span></td><td><code>/api/chat</code></td><td>Send message to AI assistant (portfolio-aware)</td></tr>
+          <tr><td><span class="tag get">GET</span></td><td><code>/api/chat/history</code></td><td>Get conversation history</td></tr>
+          <tr><td><span class="tag del">DEL</span></td><td><code>/api/chat/history</code></td><td>Clear chat history</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:0 0 14px;font-size:1.1rem">Examples</h3>
+    <div class="codebox">
+      <div class="tabs">
+        <div class="tab active" data-t="ex-curl">cURL</div>
+        <div class="tab" data-t="ex-js">JavaScript</div>
+        <div class="tab" data-t="ex-py">Python</div>
+        <div class="tab" data-t="ex-chat">AI Chat</div>
+      </div>
+      <div class="panel active" id="ex-curl"><button class="copy">Copy</button>
+<pre><span class="tk-com"># Get AI prediction for Reliance</span>
+curl https://your-host/api/predictions/RELIANCE.NS \
+  -H <span class="tk-str">"Authorization: Bearer YOUR_TOKEN"</span>
+
+<span class="tk-com"># Response:</span>
+{
+  <span class="tk-str">"symbol"</span>: <span class="tk-str">"RELIANCE.NS"</span>,
+  <span class="tk-str">"signal"</span>: <span class="tk-str">"BUY"</span>,
+  <span class="tk-str">"conviction"</span>: <span class="tk-var">78</span>,
+  <span class="tk-str">"targets"</span>: { <span class="tk-str">"short"</span>: <span class="tk-var">2950</span>, <span class="tk-str">"medium"</span>: <span class="tk-var">3100</span>, <span class="tk-str">"long"</span>: <span class="tk-var">3400</span> },
+  <span class="tk-str">"stopLoss"</span>: <span class="tk-var">2680</span>,
+  <span class="tk-str">"sentiment"</span>: <span class="tk-str">"bullish"</span>,
+  <span class="tk-str">"technicals"</span>: { <span class="tk-str">"rsi"</span>: <span class="tk-var">42</span>, <span class="tk-str">"macd"</span>: <span class="tk-str">"bullish"</span>, <span class="tk-str">"trend"</span>: <span class="tk-str">"uptrend"</span> }
+}</pre></div>
+      <div class="panel" id="ex-js"><button class="copy">Copy</button>
+<pre><span class="tk-com">// Fetch predictions with JavaScript</span>
+<span class="tk-key">const</span> token = localStorage.<span class="tk-fn">getItem</span>(<span class="tk-str">'authToken'</span>);
+
+<span class="tk-key">const</span> response = <span class="tk-key">await</span> <span class="tk-fn">fetch</span>(<span class="tk-str">'/api/predictions/TATAMOTORS.NS'</span>, {
+  headers: {
+    <span class="tk-str">'Authorization'</span>: <span class="tk-str">`Bearer ${token}`</span>,
+    <span class="tk-str">'Content-Type'</span>: <span class="tk-str">'application/json'</span>
+  }
+});
+
+<span class="tk-key">const</span> prediction = <span class="tk-key">await</span> response.<span class="tk-fn">json</span>();
+console.<span class="tk-fn">log</span>(prediction.signal);      <span class="tk-com">// "BUY"</span>
+console.<span class="tk-fn">log</span>(prediction.conviction);  <span class="tk-com">// 78</span>
+console.<span class="tk-fn">log</span>(prediction.targets);     <span class="tk-com">// { short: 950, medium: 1050 }</span></pre></div>
+      <div class="panel" id="ex-py"><button class="copy">Copy</button>
+<pre><span class="tk-key">import</span> requests
+
+BASE_URL = <span class="tk-str">"https://your-host"</span>
+TOKEN = <span class="tk-str">"your-jwt-token"</span>
+
+headers = {<span class="tk-str">"Authorization"</span>: <span class="tk-str">f"Bearer {TOKEN}"</span>}
+
+<span class="tk-com"># Get prediction</span>
+resp = requests.<span class="tk-fn">get</span>(
+    <span class="tk-str">f"{BASE_URL}/api/predictions/INFY.NS"</span>,
+    headers=headers
+)
+data = resp.<span class="tk-fn">json</span>()
+<span class="tk-fn">print</span>(<span class="tk-str">f"Signal: {data['signal']}, Conviction: {data['conviction']}%"</span>)
+
+<span class="tk-com"># Execute paper trade</span>
+trade = requests.<span class="tk-fn">post</span>(
+    <span class="tk-str">f"{BASE_URL}/api/paper-trading/buy"</span>,
+    headers=headers,
+    json={<span class="tk-str">"symbol"</span>: <span class="tk-str">"INFY.NS"</span>, <span class="tk-str">"quantity"</span>: <span class="tk-var">10</span>}
+)
+<span class="tk-fn">print</span>(trade.<span class="tk-fn">json</span>())</pre></div>
+      <div class="panel" id="ex-chat"><button class="copy">Copy</button>
+<pre><span class="tk-com"># AI Chat with portfolio context</span>
+curl -X POST https://your-host/api/chat \
+  -H <span class="tk-str">"Authorization: Bearer YOUR_TOKEN"</span> \
+  -H <span class="tk-str">"Content-Type: application/json"</span> \
+  -d <span class="tk-str">'{
+    "message": "Should I add more Reliance to my portfolio given the current market conditions?"
+  }'</span>
+
+<span class="tk-com"># Response includes:</span>
+<span class="tk-com"># - Analysis of your current Reliance holdings</span>
+<span class="tk-com"># - Latest technical indicators and sentiment</span>
+<span class="tk-com"># - Personalized recommendation with reasoning</span></pre></div>
+    </div>
+
+    <div class="note">📮 Prefer Postman? <a href="FinPredict-AI.postman_collection.json" download>Download the ready-made Postman collection</a> — set the <code>base_url</code> and <code>authToken</code> variables and start exploring.</div>
+
+    <p class="muted" style="margin-top:18px">Beyond the public API, FinPredict AI exposes <strong>70+ endpoints</strong> total — user management, watchlists, alerts, IPO tracking, scanner filters, admin settings, and more. Explore them all in the <a href="api-reference.html">full API reference</a>.</p>
+  </div>
+</section>
+
+<!-- ===================== USER GUIDE ===================== -->
+<section id="guide" class="anchor">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Using FinPredict AI</div>
+      <h2>Platform highlights</h2>
+      <p>Everything you need to make data-driven investment decisions.</p>
+    </div>
+    <div class="two">
+      <div>
+        <h3 style="margin-bottom:10px">📊 Dashboard & Analytics</h3>
+        <ul class="clean">
+          <li><strong>Dashboard</strong> — Portfolio overview, top movers, recent predictions</li>
+          <li><strong>Watchlist</strong> — Track stocks with live prices and alerts</li>
+          <li><strong>Predictions</strong> — AI signals with conviction scores and targets</li>
+          <li><strong>Paper Trading</strong> — Virtual portfolio with P&L tracking</li>
+          <li><strong>Scanner</strong> — Find opportunities with preset filters</li>
+          <li><strong>IPO Center</strong> — Upcoming, current, and listed IPOs</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="margin-bottom:10px">⚙️ Configuration & Settings</h3>
+        <ul class="clean">
+          <li>Configure AI provider keys (Gemini, OpenAI, Arbiter)</li>
+          <li>Connect Zerodha Kite for broker integration</li>
+          <li>Set default investment strategies and time horizons</li>
+          <li>Configure alert thresholds and notifications</li>
+          <li>Manage backup schedules and retention</li>
+          <li>Admin panel for user management (multi-user mode)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note" style="margin-top:26px">📚 Full documentation:
+      <a href="features.html">Features Guide</a> ·
+      <a href="user-guide.html">User Guide</a> ·
+      <a href="api-reference.html">API Reference</a> ·
+      <a href="deployment.html">Deployment Guide</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== STRATEGIES ===================== -->
+<section id="strategies" class="anchor">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Investment Strategies</div>
+      <h2>6 AI-powered strategies</h2>
+      <p>Each strategy analyzes stocks through a different lens. Combine them for ensemble signals.</p>
+    </div>
+    <div class="grid g3">
+      <div class="feature"><div class="ic">🚀</div><h3>Momentum</h3><p>Ride the trend. Identifies stocks with strong price momentum, high RSI, and increasing volume. Best for trending markets.</p></div>
+      <div class="feature"><div class="ic">💎</div><h3>Value</h3><p>Buy cheap. Finds undervalued stocks based on P/E, P/B, dividend yield, and fundamental metrics. Best for patient investors.</p></div>
+      <div class="feature"><div class="ic">📈</div><h3>Growth</h3><p>Bet on the future. Focuses on revenue growth, earnings acceleration, and market expansion potential.</p></div>
+      <div class="feature"><div class="ic">⚖️</div><h3>GARP</h3><p>Growth at Reasonable Price. Balances growth potential with valuation discipline. PEG ratio focused.</p></div>
+      <div class="feature"><div class="ic">🔄</div><h3>Swing</h3><p>Short-term moves. Identifies reversal points using RSI divergence, support/resistance, and candlestick patterns.</p></div>
+      <div class="feature"><div class="ic">🔮</div><h3>Contrarian</h3><p>Against the crowd. Finds oversold stocks with negative sentiment but strong fundamentals. High risk, high reward.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CTA ===================== -->
+<section style="text-align:center;border-bottom:none">
+  <div class="wrap">
+    <div class="kicker">Open source · self-hosted · free</div>
+    <h2 style="margin-bottom:14px">Stop paying for stock analysis. Start predicting intelligently.</h2>
+    <p class="muted" style="max-width:34em;margin:0 auto 26px">Clone it, configure your AI keys, and let FinPredict AI handle the analysis — technicals, sentiment, predictions, and paper trading.</p>
+    <div class="cta" style="justify-content:center">
+      <a class="btn btn-primary" href="https://github.com/koushikch7/FinPredict-AI" target="_blank" rel="noopener">★ Star on GitHub</a>
+      <a class="btn btn-ghost" href="#quickstart">🚀 Quick start</a>
+      <a class="btn btn-ghost" href="FinPredict-AI.postman_collection.json" download>⬇ Postman collection</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="wrap">
+    <div class="flinks">
+      <a href="https://github.com/koushikch7/FinPredict-AI">GitHub</a>
+      <a href="#features">Features</a>
+      <a href="#api">API</a>
+      <a href="#quickstart">Quick Start</a>
+      <a href="FinPredict-AI.postman_collection.json" download>Postman</a>
+      <a href="https://finpredict.chkoushik.com" target="_blank">Live Demo</a>
+    </div>
+    <div>📈 <strong>FinPredict AI</strong> v1.0.0 — AI-Powered Indian Stock Market Intelligence · Self-hosted · Open Source</div>
+    <div class="dim" style="margin-top:6px">Built with React · TypeScript · Node.js · Docker. Free market data, enterprise-grade analytics.</div>
+    <div class="dim" style="margin-top:10px">© 2026 <a href="https://chkoushik.com" target="_blank">Koushik Chalasani</a> · MIT License</div>
+  </div>
+</footer>
+
+<script>
+  // Tabs
+  document.querySelectorAll('.tabs').forEach(function(group){
+    var tabs = group.querySelectorAll('.tab');
+    var box = group.parentElement;
+    tabs.forEach(function(tab){
+      tab.addEventListener('click', function(){
+        var id = tab.getAttribute('data-t');
+        tabs.forEach(function(t){ t.classList.remove('active'); });
+        tab.classList.add('active');
+        box.querySelectorAll('.panel').forEach(function(p){
+          p.classList.toggle('active', p.id === id);
+        });
+      });
+    });
+  });
+  // Copy buttons
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pre = btn.parentElement.querySelector('pre');
+      var text = pre ? pre.innerText : '';
+      navigator.clipboard.writeText(text).then(function(){
+        var old = btn.textContent; btn.textContent = '✓ Copied';
+        setTimeout(function(){ btn.textContent = old; }, 1400);
+      });
+    });
+  });
+</script>
+</body>
+</html>

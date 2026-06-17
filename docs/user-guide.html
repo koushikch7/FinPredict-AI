@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>User Guide — FinPredict AI</title>
+<meta name="description" content="Step-by-step guide to using FinPredict AI - from setup to daily usage." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📈%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{--bg:#0a0e1a;--bg2:#0f1525;--card:#141b2e;--card2:#1a2236;--border:#243049;--border2:#2e3b58;--txt:#e6ecf7;--muted:#9aa8c4;--dim:#6b7896;--brand:#10b981;--brand2:#06b6d4;--accent:#22d3ee;--green:#34d399;--amber:#fbbf24;--red:#f87171;--purple:#a78bfa;--radius:14px;--maxw:900px;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.7;-webkit-font-smoothing:antialiased}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}code{font-family:var(--mono);font-size:.88em;background:var(--bg2);padding:2px 7px;border-radius:6px;border:1px solid var(--border)}.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}.muted{color:var(--muted)}.dim{color:var(--dim)}
+  header.nav{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}.nav-inner{display:flex;align-items:center;gap:18px;height:60px}.logo{font-weight:800;font-size:1.18rem;letter-spacing:-.02em;display:flex;align-items:center;gap:9px}.logo .v{font-size:.62rem;font-weight:700;color:var(--brand2);border:1px solid var(--border2);border-radius:20px;padding:2px 8px;margin-left:4px}.nav-links{display:flex;gap:22px;margin-left:auto;align-items:center}.nav-links a{color:var(--muted);font-size:.92rem;font-weight:500}.nav-links a:hover{color:var(--txt);text-decoration:none}.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:9px 16px;font-weight:600;font-size:.9rem;cursor:pointer;border:1px solid transparent;transition:.15s}.btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}.btn-primary:hover{filter:brightness(1.1);text-decoration:none}.btn-ghost{background:var(--card);border-color:var(--border2);color:var(--txt)}.btn-ghost:hover{background:var(--card2);text-decoration:none}
+  main{padding:60px 0 80px}h1{font-size:2.4rem;font-weight:800;margin-bottom:12px;letter-spacing:-.02em}h2{font-size:1.6rem;font-weight:700;margin:48px 0 18px;padding-top:24px;border-top:1px solid var(--border)}h3{font-size:1.2rem;font-weight:600;margin:28px 0 14px;color:var(--accent)}p{margin-bottom:16px}ul,ol{margin:16px 0 24px 24px}li{margin-bottom:10px}
+  .step{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin:24px 0}.step h3{margin-top:0;display:flex;align-items:center;gap:12px}.step .num{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem}
+  pre{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;overflow-x:auto;font-family:var(--mono);font-size:.85rem;line-height:1.6;margin:18px 0}
+  .note{background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(6,182,212,.05));border:1px solid var(--border2);border-left:3px solid var(--brand);border-radius:10px;padding:14px 18px;font-size:.92rem;color:var(--muted);margin:18px 0}
+  .warning{background:linear-gradient(135deg,rgba(251,191,36,.08),rgba(248,113,113,.05));border:1px solid var(--border2);border-left:3px solid var(--amber);border-radius:10px;padding:14px 18px;font-size:.92rem;color:var(--muted);margin:18px 0}
+  footer{padding:40px 0;text-align:center;color:var(--dim);font-size:.88rem;border-top:1px solid var(--border)}.flinks{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-bottom:18px}.flinks a{color:var(--muted)}.flinks a:hover{color:var(--txt)}
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap nav-inner"><a href="index.html" class="logo">📈 FinPredict AI<span class="v">v1.0.0</span></a><nav class="nav-links"><a href="index.html">Home</a><a href="features.html">Features</a><a href="api-reference.html">API</a><a class="btn btn-primary" href="https://github.com/koushikch7/FinPredict-AI" target="_blank">★ GitHub</a></nav></div></header>
+
+<main class="wrap">
+<h1>📘 User Guide</h1>
+<p class="muted">Step-by-step instructions for getting the most out of FinPredict AI.</p>
+
+<h2>🚀 Getting Started</h2>
+
+<div class="step">
+<h3><span class="num">1</span>Create Your Account</h3>
+<p>After launching FinPredict AI, navigate to the login page and click "Register":</p>
+<ul>
+<li>Choose a username (3-20 characters, alphanumeric)</li>
+<li>Enter a valid email address</li>
+<li>Create a strong password (8+ characters, mix of letters/numbers)</li>
+</ul>
+<p>You'll be automatically logged in after registration.</p>
+</div>
+
+<div class="step">
+<h3><span class="num">2</span>Configure AI Provider</h3>
+<p>Go to <strong>Settings → AI Configuration</strong> and add at least one provider:</p>
+<ul>
+<li><strong>Gemini:</strong> Free tier with 15 RPM. Get key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></li>
+<li><strong>OpenAI:</strong> Paid API. Get key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Dashboard</a></li>
+<li><strong>Arbiter:</strong> Recommended! Self-hosted gateway with 11+ providers. See <a href="https://koushikch7.github.io/arbiter/" target="_blank">Arbiter docs</a></li>
+</ul>
+<div class="note">💡 <strong>Tip:</strong> Arbiter is the best choice — it handles provider rotation, fallback, and rate limiting automatically.</div>
+</div>
+
+<div class="step">
+<h3><span class="num">3</span>Build Your Watchlist</h3>
+<p>Navigate to <strong>Stocks</strong> and search for symbols to track:</p>
+<ul>
+<li>Search by company name (e.g., "Reliance") or symbol (e.g., "RELIANCE.NS")</li>
+<li>Click the <strong>+</strong> button to add to your watchlist</li>
+<li>The app comes pre-seeded with 166 popular NSE/BSE stocks</li>
+</ul>
+</div>
+
+<h2>📊 Using the Dashboard</h2>
+
+<h3>Portfolio Overview</h3>
+<p>The dashboard shows a real-time snapshot of your paper trading portfolio:</p>
+<ul>
+<li><strong>Total Value:</strong> Cash + current value of holdings</li>
+<li><strong>P&L:</strong> Total profit/loss with percentage</li>
+<li><strong>Top Movers:</strong> Your holdings with biggest daily changes</li>
+<li><strong>Recent Predictions:</strong> Latest AI signals for your watchlist</li>
+</ul>
+
+<h3>Market Overview</h3>
+<p>Quick view of market indices and sector performance:</p>
+<ul>
+<li>Nifty 50, Bank Nifty, Sensex</li>
+<li>Sector-wise gainers/losers</li>
+<li>Market breadth (advances vs declines)</li>
+</ul>
+
+<h2>🤖 Getting AI Predictions</h2>
+
+<div class="step">
+<h3><span class="num">1</span>View Existing Predictions</h3>
+<p>Click on any stock in your watchlist to see its latest prediction:</p>
+<ul>
+<li><strong>Signal:</strong> BUY, SELL, or HOLD</li>
+<li><strong>Conviction:</strong> 0-100% confidence score</li>
+<li><strong>Targets:</strong> Short, medium, and long-term price targets</li>
+<li><strong>Stop Loss:</strong> Recommended exit if trade goes wrong</li>
+</ul>
+</div>
+
+<div class="step">
+<h3><span class="num">2</span>Generate Fresh Prediction</h3>
+<p>Click the <strong>🔄 Refresh</strong> button to generate a new prediction:</p>
+<ul>
+<li>Latest market data is fetched</li>
+<li>Technical indicators recalculated</li>
+<li>News sentiment re-analyzed</li>
+<li>AI generates fresh signal with reasoning</li>
+</ul>
+<div class="warning">⚠️ <strong>Rate limits:</strong> Free AI tiers have limits. Gemini: 15 RPM, OpenAI: varies by plan.</div>
+</div>
+
+<div class="step">
+<h3><span class="num">3</span>Choose Strategy</h3>
+<p>Select a strategy that matches your investment style:</p>
+<ul>
+<li><strong>Momentum:</strong> For trending markets, follows strong moves</li>
+<li><strong>Value:</strong> For patient investors, finds undervalued stocks</li>
+<li><strong>Growth:</strong> For aggressive growth, focuses on earnings acceleration</li>
+<li><strong>Swing:</strong> For short-term trades, 1-5 day holding period</li>
+<li><strong>Contrarian:</strong> For risk-takers, bets against the crowd</li>
+</ul>
+</div>
+
+<h2>📈 Paper Trading</h2>
+
+<h3>Executing Trades</h3>
+<p>Practice trading without risking real money:</p>
+<ol>
+<li>Go to <strong>Paper Trading</strong> or click <strong>Trade</strong> on any stock</li>
+<li>Enter quantity (in shares)</li>
+<li>Choose order type: <strong>Market</strong> (execute now) or <strong>Limit</strong> (set price)</li>
+<li>Review estimated cost including brokerage</li>
+<li>Click <strong>Buy</strong> or <strong>Sell</strong></li>
+</ol>
+
+<h3>Understanding Charges</h3>
+<p>Paper trading simulates real Zerodha charges:</p>
+<ul>
+<li><strong>Brokerage:</strong> 0.03% or ₹20 per order (whichever is lower)</li>
+<li><strong>STT:</strong> 0.1% on sell value</li>
+<li><strong>Exchange fees:</strong> 0.00345%</li>
+<li><strong>GST:</strong> 18% on brokerage</li>
+<li><strong>SEBI charges:</strong> ₹10 per crore</li>
+</ul>
+
+<h3>Tracking Performance</h3>
+<p>Monitor your paper trading results in <strong>Paper Trading → Performance</strong>:</p>
+<ul>
+<li><strong>Win Rate:</strong> Percentage of profitable trades</li>
+<li><strong>Average P&L:</strong> Mean profit/loss per trade</li>
+<li><strong>Best/Worst Trade:</strong> Extremes of your trading</li>
+<li><strong>Sharpe Ratio:</strong> Risk-adjusted returns</li>
+</ul>
+
+<h2>💬 AI Chat Assistant</h2>
+
+<h3>What You Can Ask</h3>
+<p>The AI assistant knows your portfolio and market context:</p>
+<ul>
+<li>"What's the outlook for TCS this week?"</li>
+<li>"Should I add more Reliance to my portfolio?"</li>
+<li>"Find me oversold banking stocks"</li>
+<li>"Analyze my paper trading performance"</li>
+<li>"What's driving Tata Motors today?"</li>
+<li>"Compare HDFC Bank vs ICICI Bank"</li>
+</ul>
+
+<h3>Tips for Better Responses</h3>
+<ul>
+<li>Be specific: "INFY" instead of "Infosys stock"</li>
+<li>Mention timeframe: "next week" or "for swing trading"</li>
+<li>Ask one question at a time for detailed answers</li>
+</ul>
+
+<h2>🔗 Connecting Zerodha</h2>
+
+<div class="step">
+<h3><span class="num">1</span>Get Kite API Access</h3>
+<p>Apply for Kite Connect API at <a href="https://kite.trade" target="_blank">kite.trade</a>:</p>
+<ul>
+<li>₹2,000 one-time + ₹2,000/month subscription</li>
+<li>Approval takes 1-2 business days</li>
+<li>You'll receive API key and secret</li>
+</ul>
+</div>
+
+<div class="step">
+<h3><span class="num">2</span>Configure in FinPredict</h3>
+<p>Go to <strong>Settings → Broker Integration</strong>:</p>
+<ul>
+<li>Enter your Kite API Key</li>
+<li>Enter your Kite API Secret</li>
+<li>Click <strong>Connect</strong></li>
+<li>You'll be redirected to Zerodha login</li>
+</ul>
+</div>
+
+<div class="step">
+<h3><span class="num">3</span>Sync Holdings</h3>
+<p>After connecting:</p>
+<ul>
+<li>Your real holdings are imported automatically</li>
+<li>Compare paper vs real portfolio performance</li>
+<li>Holdings refresh daily at market open</li>
+</ul>
+<div class="note">🔒 <strong>Security:</strong> FinPredict only has read access. It cannot execute trades on your real account.</div>
+</div>
+
+<h2>🔍 Using the Scanner</h2>
+
+<h3>Pre-built Scans</h3>
+<p>Find opportunities quickly with preset filters:</p>
+<ul>
+<li><strong>Momentum Breakouts:</strong> Stocks breaking above resistance with volume</li>
+<li><strong>Oversold Bounces:</strong> RSI below 30, showing reversal signs</li>
+<li><strong>Volume Spikes:</strong> 2x+ average volume today</li>
+<li><strong>52-Week Highs:</strong> Stocks at all-time highs</li>
+<li><strong>52-Week Lows:</strong> Potential value plays at lows</li>
+</ul>
+
+<h3>Custom Scans</h3>
+<p>Build your own filter criteria:</p>
+<ul>
+<li>Price range, market cap, sector</li>
+<li>RSI, MACD, volume thresholds</li>
+<li>P/E, P/B, dividend yield ranges</li>
+<li>Combine multiple conditions with AND/OR</li>
+</ul>
+
+<h2>⚙️ Settings & Preferences</h2>
+
+<h3>Notification Settings</h3>
+<ul>
+<li>Price alerts for watchlist stocks</li>
+<li>New prediction notifications</li>
+<li>Paper trade execution confirmations</li>
+</ul>
+
+<h3>Display Preferences</h3>
+<ul>
+<li>Dark/light theme</li>
+<li>Default chart timeframe</li>
+<li>Currency display format</li>
+</ul>
+
+<h3>Data & Privacy</h3>
+<ul>
+<li>Export your data (JSON/CSV)</li>
+<li>Clear prediction history</li>
+<li>Delete account and all data</li>
+</ul>
+
+</main>
+
+<footer><div class="wrap"><div class="flinks"><a href="index.html">Home</a><a href="features.html">Features</a><a href="api-reference.html">API Reference</a><a href="deployment.html">Deployment</a><a href="https://github.com/koushikch7/FinPredict-AI">GitHub</a></div><div>📈 FinPredict AI — AI-Powered Indian Stock Market Intelligence</div><div class="dim" style="margin-top:6px">© 2026 Koushik Chalasani · MIT License</div></div></footer>
+</body>
+</html>

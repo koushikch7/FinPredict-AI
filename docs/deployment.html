@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Deployment Guide — FinPredict AI</title>
+<meta name="description" content="Production deployment guide for FinPredict AI - Docker, VPS, cloud providers, and best practices." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📈%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{--bg:#0a0e1a;--bg2:#0f1525;--card:#141b2e;--card2:#1a2236;--border:#243049;--border2:#2e3b58;--txt:#e6ecf7;--muted:#9aa8c4;--dim:#6b7896;--brand:#10b981;--brand2:#06b6d4;--accent:#22d3ee;--green:#34d399;--amber:#fbbf24;--red:#f87171;--purple:#a78bfa;--radius:14px;--maxw:900px;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.7;-webkit-font-smoothing:antialiased}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}code{font-family:var(--mono);font-size:.88em;background:var(--bg2);padding:2px 7px;border-radius:6px;border:1px solid var(--border)}.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}.muted{color:var(--muted)}.dim{color:var(--dim)}
+  header.nav{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}.nav-inner{display:flex;align-items:center;gap:18px;height:60px}.logo{font-weight:800;font-size:1.18rem;letter-spacing:-.02em;display:flex;align-items:center;gap:9px}.logo .v{font-size:.62rem;font-weight:700;color:var(--brand2);border:1px solid var(--border2);border-radius:20px;padding:2px 8px;margin-left:4px}.nav-links{display:flex;gap:22px;margin-left:auto;align-items:center}.nav-links a{color:var(--muted);font-size:.92rem;font-weight:500}.nav-links a:hover{color:var(--txt);text-decoration:none}.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:9px 16px;font-weight:600;font-size:.9rem;cursor:pointer;border:1px solid transparent;transition:.15s}.btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}.btn-primary:hover{filter:brightness(1.1);text-decoration:none}.btn-ghost{background:var(--card);border-color:var(--border2);color:var(--txt)}.btn-ghost:hover{background:var(--card2);text-decoration:none}
+  main{padding:60px 0 80px}h1{font-size:2.4rem;font-weight:800;margin-bottom:12px;letter-spacing:-.02em}h2{font-size:1.6rem;font-weight:700;margin:48px 0 18px;padding-top:24px;border-top:1px solid var(--border)}h3{font-size:1.2rem;font-weight:600;margin:28px 0 14px;color:var(--accent)}p{margin-bottom:16px}ul,ol{margin:16px 0 24px 24px}li{margin-bottom:10px}
+  pre{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;overflow-x:auto;font-family:var(--mono);font-size:.85rem;line-height:1.6;margin:18px 0}
+  .note{background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(6,182,212,.05));border:1px solid var(--border2);border-left:3px solid var(--brand);border-radius:10px;padding:14px 18px;font-size:.92rem;color:var(--muted);margin:18px 0}
+  .warning{background:linear-gradient(135deg,rgba(251,191,36,.08),rgba(248,113,113,.05));border:1px solid var(--border2);border-left:3px solid var(--amber);border-radius:10px;padding:14px 18px;font-size:.92rem;color:var(--muted);margin:18px 0}
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);margin:18px 0}table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--border)}th{background:var(--card2);font-weight:600;color:var(--muted);font-size:.8rem;text-transform:uppercase}tr:last-child td{border-bottom:none}
+  footer{padding:40px 0;text-align:center;color:var(--dim);font-size:.88rem;border-top:1px solid var(--border)}.flinks{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-bottom:18px}.flinks a{color:var(--muted)}.flinks a:hover{color:var(--txt)}
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap nav-inner"><a href="index.html" class="logo">📈 FinPredict AI<span class="v">v1.0.0</span></a><nav class="nav-links"><a href="index.html">Home</a><a href="features.html">Features</a><a href="api-reference.html">API</a><a class="btn btn-primary" href="https://github.com/koushikch7/FinPredict-AI" target="_blank">★ GitHub</a></nav></div></header>
+
+<main class="wrap">
+<h1>🚀 Deployment Guide</h1>
+<p class="muted">Production deployment instructions for FinPredict AI.</p>
+
+<h2>📋 Requirements</h2>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Component</th><th>Minimum</th><th>Recommended</th></tr></thead>
+<tbody>
+<tr><td><strong>CPU</strong></td><td>1 vCPU</td><td>2+ vCPU</td></tr>
+<tr><td><strong>RAM</strong></td><td>1 GB</td><td>2+ GB</td></tr>
+<tr><td><strong>Storage</strong></td><td>10 GB</td><td>20+ GB SSD</td></tr>
+<tr><td><strong>Node.js</strong></td><td>v20.x</td><td>v20.x LTS</td></tr>
+<tr><td><strong>Docker</strong></td><td>v20.x</td><td>v24.x</td></tr>
+<tr><td><strong>OS</strong></td><td>Linux/macOS</td><td>Ubuntu 22.04 LTS</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>🐳 Docker Deployment (Recommended)</h2>
+
+<h3>Option A: Pre-built Image</h3>
+<pre># Pull and run (when published to Docker Hub)
+docker pull koushikch7/finpredict-ai:latest
+docker run -d --name finpredict \
+  -p 3000:3000 \
+  --env-file .env \
+  -v finpredict-data:/app/data \
+  koushikch7/finpredict-ai:latest</pre>
+
+<h3>Option B: Build from Source</h3>
+<pre># Clone repository
+git clone https://github.com/koushikch7/FinPredict-AI.git
+cd FinPredict-AI
+
+# Create environment file
+cp .env.example .env
+nano .env  # Configure your settings
+
+# Build image
+docker build -t finpredict-ai .
+
+# Run container
+docker run -d --name finpredict \
+  -p 3000:3000 \
+  --env-file .env \
+  -v finpredict-data:/app/data \
+  --restart unless-stopped \
+  finpredict-ai</pre>
+
+<h3>Docker Compose</h3>
+<pre># docker-compose.yml
+version: '3.8'
+services:
+  finpredict:
+    build: .
+    container_name: finpredict
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - finpredict-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  finpredict-data:</pre>
+
+<pre># Launch with compose
+docker compose up -d</pre>
+
+<h2>⚙️ Environment Configuration</h2>
+
+<h3>Required Variables</h3>
+<pre># Server
+NODE_ENV=production
+PORT=3000
+
+# Security (generate with: openssl rand -hex 32)
+JWT_SECRET=your-256-bit-secret-key
+COOKIE_SECRET=your-256-bit-cookie-secret
+
+# AI Provider (at least one required)
+GEMINI_API_KEY=AIzaSy...your-key
+# OR
+ARBITER_API_KEY=gwtk_your_token
+ARBITER_BASE_URL=https://your-arbiter-host/v1</pre>
+
+<h3>Optional Variables</h3>
+<pre># Alternative AI providers
+OPENAI_API_KEY=sk-...your-key
+
+# FinBERT sentiment (HuggingFace)
+HF_API_KEY=hf_...your-key
+
+# Zerodha broker integration
+KITE_API_KEY=your-kite-api-key
+KITE_API_SECRET=your-kite-api-secret
+
+# Backup configuration
+BACKUP_ENABLED=true
+BACKUP_RETENTION_DAYS=30
+
+# Rate limiting
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX_REQUESTS=100</pre>
+
+<div class="warning">⚠️ <strong>Security:</strong> Never commit <code>.env</code> to version control. Use secrets management in production.</div>
+
+<h2>🌐 Reverse Proxy Setup</h2>
+
+<h3>Nginx Configuration</h3>
+<pre># /etc/nginx/sites-available/finpredict
+server {
+    listen 80;
+    server_name finpredict.yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# Enable the site
+sudo ln -s /etc/nginx/sites-available/finpredict /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx</pre>
+
+<h3>SSL with Certbot</h3>
+<pre># Install certbot
+sudo apt install certbot python3-certbot-nginx
+
+# Get certificate
+sudo certbot --nginx -d finpredict.yourdomain.com
+
+# Auto-renewal is configured automatically</pre>
+
+<h2>☁️ Cloud Deployment</h2>
+
+<h3>AWS EC2</h3>
+<ol>
+<li>Launch Ubuntu 22.04 t3.small instance</li>
+<li>Configure security group: allow ports 22, 80, 443</li>
+<li>SSH into instance and install Docker:
+<pre>curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER</pre>
+</li>
+<li>Follow Docker deployment steps above</li>
+<li>Configure Elastic IP for static address</li>
+</ol>
+
+<h3>Google Cloud Run</h3>
+<pre># Build and push to GCR
+gcloud builds submit --tag gcr.io/YOUR_PROJECT/finpredict-ai
+
+# Deploy to Cloud Run
+gcloud run deploy finpredict-ai \
+  --image gcr.io/YOUR_PROJECT/finpredict-ai \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars="NODE_ENV=production,JWT_SECRET=xxx"</pre>
+
+<h3>DigitalOcean App Platform</h3>
+<ol>
+<li>Fork the repository to your GitHub</li>
+<li>Create new App in DO App Platform</li>
+<li>Connect your GitHub repository</li>
+<li>Configure environment variables</li>
+<li>Deploy (auto-deploys on push)</li>
+</ol>
+
+<h2>💾 Backup & Recovery</h2>
+
+<h3>Automatic Backups</h3>
+<p>FinPredict automatically backs up the SQLite database daily when <code>BACKUP_ENABLED=true</code>:</p>
+<ul>
+<li>Backups stored in <code>/app/data/backups/</code></li>
+<li>Filename format: <code>backup-YYYY-MM-DD.db</code></li>
+<li>Old backups purged after <code>BACKUP_RETENTION_DAYS</code></li>
+</ul>
+
+<h3>Manual Backup</h3>
+<pre># Inside container
+docker exec finpredict cp /app/data/finpredict.db /app/data/backups/manual-$(date +%Y%m%d).db
+
+# Copy to host
+docker cp finpredict:/app/data/backups/ ./backups/</pre>
+
+<h3>Restore from Backup</h3>
+<pre># Stop container
+docker stop finpredict
+
+# Restore database
+docker cp ./backups/backup-2026-06-15.db finpredict:/app/data/finpredict.db
+
+# Start container
+docker start finpredict</pre>
+
+<h2>📊 Monitoring</h2>
+
+<h3>Health Check Endpoint</h3>
+<pre>curl http://localhost:3000/api/health
+# → {"status":"ok","version":"1.0.0","uptime":12345,"db":"connected"}</pre>
+
+<h3>Docker Logs</h3>
+<pre># View logs
+docker logs finpredict
+
+# Follow logs
+docker logs -f finpredict
+
+# Last 100 lines
+docker logs --tail 100 finpredict</pre>
+
+<h3>Resource Monitoring</h3>
+<pre># Container stats
+docker stats finpredict
+
+# Inside container
+docker exec finpredict cat /proc/meminfo
+docker exec finpredict df -h</pre>
+
+<h2>🔄 Updates</h2>
+
+<h3>Updating the Application</h3>
+<pre># Pull latest code
+cd FinPredict-AI
+git pull origin main
+
+# Rebuild and restart
+docker compose down
+docker compose build --no-cache
+docker compose up -d</pre>
+
+<div class="note">💡 <strong>Tip:</strong> Database schema migrations run automatically on startup.</div>
+
+<h2>🛡️ Security Checklist</h2>
+
+<ul>
+<li>✅ Use strong, unique secrets for JWT_SECRET and COOKIE_SECRET</li>
+<li>✅ Enable HTTPS with valid SSL certificate</li>
+<li>✅ Keep Docker and Node.js updated</li>
+<li>✅ Configure firewall (ufw) to only allow necessary ports</li>
+<li>✅ Use non-root user inside Docker container</li>
+<li>✅ Enable automatic security updates on host OS</li>
+<li>✅ Monitor logs for suspicious activity</li>
+<li>✅ Regular database backups with off-site copies</li>
+<li>✅ Use secrets manager (AWS Secrets Manager, Vault) in production</li>
+</ul>
+
+<h2>🆘 Troubleshooting</h2>
+
+<h3>Container won't start</h3>
+<pre># Check logs
+docker logs finpredict
+
+# Common issues:
+# - Missing required env vars → check .env file
+# - Port already in use → change PORT or stop other service
+# - Permission issues → check volume permissions</pre>
+
+<h3>Database locked errors</h3>
+<pre># SQLite WAL mode should prevent this, but if it happens:
+docker exec finpredict sqlite3 /app/data/finpredict.db "PRAGMA wal_checkpoint(TRUNCATE);"</pre>
+
+<h3>Out of memory</h3>
+<pre># Increase container memory limit
+docker run -d --name finpredict \
+  -m 2g \  # 2GB limit
+  --memory-swap 4g \
+  ...</pre>
+
+</main>
+
+<footer><div class="wrap"><div class="flinks"><a href="index.html">Home</a><a href="features.html">Features</a><a href="api-reference.html">API Reference</a><a href="user-guide.html">User Guide</a><a href="https://github.com/koushikch7/FinPredict-AI">GitHub</a></div><div>📈 FinPredict AI — AI-Powered Indian Stock Market Intelligence</div><div class="dim" style="margin-top:6px">© 2026 Koushik Chalasani · MIT License</div></div></footer>
+</body>
+</html>

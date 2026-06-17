@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>API Reference — FinPredict AI</title>
+<meta name="description" content="Complete REST API documentation for FinPredict AI - 70+ endpoints for predictions, trading, analysis, and more." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📈%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{--bg:#0a0e1a;--bg2:#0f1525;--card:#141b2e;--card2:#1a2236;--border:#243049;--border2:#2e3b58;--txt:#e6ecf7;--muted:#9aa8c4;--dim:#6b7896;--brand:#10b981;--brand2:#06b6d4;--accent:#22d3ee;--green:#34d399;--amber:#fbbf24;--red:#f87171;--purple:#a78bfa;--radius:14px;--maxw:1000px;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.7;-webkit-font-smoothing:antialiased}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}code{font-family:var(--mono);font-size:.88em;background:var(--bg2);padding:2px 7px;border-radius:6px;border:1px solid var(--border)}.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}.muted{color:var(--muted)}.dim{color:var(--dim)}
+  header.nav{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}.nav-inner{display:flex;align-items:center;gap:18px;height:60px}.logo{font-weight:800;font-size:1.18rem;letter-spacing:-.02em;display:flex;align-items:center;gap:9px}.logo .v{font-size:.62rem;font-weight:700;color:var(--brand2);border:1px solid var(--border2);border-radius:20px;padding:2px 8px;margin-left:4px}.nav-links{display:flex;gap:22px;margin-left:auto;align-items:center}.nav-links a{color:var(--muted);font-size:.92rem;font-weight:500}.nav-links a:hover{color:var(--txt);text-decoration:none}.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:9px 16px;font-weight:600;font-size:.9rem;cursor:pointer;border:1px solid transparent;transition:.15s}.btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}.btn-primary:hover{filter:brightness(1.1);text-decoration:none}.btn-ghost{background:var(--card);border-color:var(--border2);color:var(--txt)}.btn-ghost:hover{background:var(--card2);text-decoration:none}
+  main{padding:60px 0 80px}h1{font-size:2.4rem;font-weight:800;margin-bottom:12px;letter-spacing:-.02em}h2{font-size:1.6rem;font-weight:700;margin:48px 0 18px;padding-top:24px;border-top:1px solid var(--border)}h3{font-size:1.1rem;font-weight:600;margin:28px 0 14px}p{margin-bottom:16px}
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);margin:18px 0}table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:560px}th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--border)}th{background:var(--card2);font-weight:600;color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}tr:last-child td{border-bottom:none}td code{background:var(--bg2);padding:2px 7px;border-radius:6px;border:1px solid var(--border)}
+  .tag{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:20px}.tag.get{background:rgba(52,211,153,.14);color:var(--green)}.tag.post{background:rgba(99,102,241,.16);color:#a5b4fc}.tag.del{background:rgba(248,113,113,.14);color:var(--red)}.tag.patch{background:rgba(251,191,36,.14);color:var(--amber)}
+  pre{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;overflow-x:auto;font-family:var(--mono);font-size:.85rem;line-height:1.6;margin:18px 0}
+  .note{background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(6,182,212,.05));border:1px solid var(--border2);border-left:3px solid var(--brand);border-radius:10px;padding:14px 18px;font-size:.92rem;color:var(--muted);margin:18px 0}
+  footer{padding:40px 0;text-align:center;color:var(--dim);font-size:.88rem;border-top:1px solid var(--border)}.flinks{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-bottom:18px}.flinks a{color:var(--muted)}.flinks a:hover{color:var(--txt)}
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap nav-inner"><a href="index.html" class="logo">📈 FinPredict AI<span class="v">v1.0.0</span></a><nav class="nav-links"><a href="index.html">Home</a><a href="features.html">Features</a><a href="user-guide.html">Guide</a><a class="btn btn-ghost" href="FinPredict-AI.postman_collection.json" download>⬇ Postman</a><a class="btn btn-primary" href="https://github.com/koushikch7/FinPredict-AI" target="_blank">★ GitHub</a></nav></div></header>
+
+<main class="wrap">
+<h1>📖 API Reference</h1>
+<p class="muted">Complete REST API documentation. All endpoints require <code>Authorization: Bearer &lt;token&gt;</code> unless marked public.</p>
+
+<div class="note">📮 <strong>Prefer Postman?</strong> <a href="FinPredict-AI.postman_collection.json" download>Download the Postman collection</a> with all endpoints pre-configured.</div>
+
+<h2>🔐 Authentication</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/auth/register</code></td><td>Public</td><td>Register new user</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/auth/login</code></td><td>Public</td><td>Login and receive JWT</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/auth/logout</code></td><td>Required</td><td>Logout and clear session</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/auth/me</code></td><td>Required</td><td>Get current user profile</td></tr>
+<tr><td><span class="tag patch">PATCH</span></td><td><code>/api/auth/me</code></td><td>Required</td><td>Update user settings</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/auth/change-password</code></td><td>Required</td><td>Change password</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Register Request</h3>
+<pre>{
+  "username": "demo",
+  "email": "demo@example.com",
+  "password": "SecurePass123!"
+}</pre>
+
+<h3>Login Response</h3>
+<pre>{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": 1,
+    "username": "demo",
+    "email": "demo@example.com",
+    "createdAt": "2026-01-15T10:30:00Z"
+  }
+}</pre>
+
+<h2>📊 Stocks & Market Data</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/stocks</code></td><td>List all tracked stocks with latest prices</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/stocks/:symbol</code></td><td>Get stock details, fundamentals, and history</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/stocks/:symbol/chart</code></td><td>OHLCV data for charts</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/stocks/:symbol/fundamentals</code></td><td>P/E, P/B, dividend yield, market cap</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/stocks</code></td><td>Add new stock to watchlist</td></tr>
+<tr><td><span class="tag del">DEL</span></td><td><code>/api/stocks/:symbol</code></td><td>Remove stock from watchlist</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/stocks/search</code></td><td>Search stocks by name or symbol</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Stock Response</h3>
+<pre>{
+  "symbol": "RELIANCE.NS",
+  "name": "Reliance Industries Limited",
+  "exchange": "NSE",
+  "price": 2847.50,
+  "change": 23.40,
+  "changePercent": 0.83,
+  "volume": 12453000,
+  "marketCap": 1927000000000,
+  "pe": 28.5,
+  "pb": 2.1,
+  "dividendYield": 0.35,
+  "52wHigh": 3025.00,
+  "52wLow": 2180.00
+}</pre>
+
+<h2>🤖 AI Predictions</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/predictions/:symbol</code></td><td>Get latest AI prediction</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/predictions/:symbol/generate</code></td><td>Generate fresh prediction</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/predictions</code></td><td>List all predictions (with filters)</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/predictions/history/:symbol</code></td><td>Prediction history with accuracy</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/predictions/leaderboard</code></td><td>Top performing predictions</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Prediction Response</h3>
+<pre>{
+  "symbol": "RELIANCE.NS",
+  "timestamp": "2026-06-17T09:30:00Z",
+  "signal": "BUY",
+  "conviction": 78,
+  "strategy": "momentum",
+  "timeHorizon": "short",
+  "targets": {
+    "short": 2950,
+    "medium": 3100,
+    "long": 3400
+  },
+  "stopLoss": 2680,
+  "sentiment": {
+    "score": 0.72,
+    "label": "bullish",
+    "headlines": 12
+  },
+  "technicals": {
+    "rsi": 42,
+    "macd": "bullish",
+    "trend": "uptrend",
+    "support": 2750,
+    "resistance": 2920
+  },
+  "reasoning": "Strong momentum with RSI recovering from oversold..."
+}</pre>
+
+<h2>📈 Paper Trading</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/paper-trading/portfolio</code></td><td>Get portfolio summary</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/paper-trading/positions</code></td><td>List open positions</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/paper-trading/buy</code></td><td>Execute buy order</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/paper-trading/sell</code></td><td>Execute sell order</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/paper-trading/trades</code></td><td>Trade history</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/paper-trading/performance</code></td><td>Performance metrics</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/paper-trading/reset</code></td><td>Reset to ₹1L</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Buy Request</h3>
+<pre>{
+  "symbol": "INFY.NS",
+  "quantity": 10,
+  "orderType": "MARKET"  // or "LIMIT" with limitPrice
+}</pre>
+
+<h3>Portfolio Response</h3>
+<pre>{
+  "cash": 75420.50,
+  "invested": 24579.50,
+  "currentValue": 26150.00,
+  "totalValue": 101570.50,
+  "pnl": 1570.50,
+  "pnlPercent": 1.57,
+  "positions": [
+    {
+      "symbol": "INFY.NS",
+      "quantity": 10,
+      "avgPrice": 1520.00,
+      "currentPrice": 1580.00,
+      "pnl": 600.00
+    }
+  ]
+}</pre>
+
+<h2>📊 Technical Analysis</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/technicals/:symbol</code></td><td>All indicators</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/technicals/:symbol/rsi</code></td><td>RSI indicator</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/technicals/:symbol/macd</code></td><td>MACD indicator</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/technicals/:symbol/bollinger</code></td><td>Bollinger Bands</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/technicals/:symbol/patterns</code></td><td>Chart patterns</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>📰 Sentiment & News</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/sentiment/:symbol</code></td><td>FinBERT sentiment score</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/news/:symbol</code></td><td>Stock-specific news</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/news</code></td><td>Market-wide news</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>💬 AI Chat</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/chat</code></td><td>Send message to AI</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/chat/history</code></td><td>Get chat history</td></tr>
+<tr><td><span class="tag del">DEL</span></td><td><code>/api/chat/history</code></td><td>Clear chat history</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>🔍 Scanner & Discovery</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/scanner/momentum</code></td><td>Momentum breakouts</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/scanner/oversold</code></td><td>Oversold bounces</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/scanner/volume</code></td><td>Volume spikes</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/scanner/52week</code></td><td>52-week highs/lows</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/scanner/custom</code></td><td>Custom filter scan</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>🆕 IPO</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/ipo/upcoming</code></td><td>Upcoming IPOs</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/ipo/current</code></td><td>Currently open IPOs</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/ipo/listed</code></td><td>Recently listed IPOs</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/ipo/:id/analysis</code></td><td>AI analysis for IPO</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>🔗 Broker Integration</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/broker/connect</code></td><td>Initiate OAuth flow</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/broker/callback</code></td><td>OAuth callback</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/broker/holdings</code></td><td>Sync real holdings</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/broker/positions</code></td><td>Current positions</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/broker/disconnect</code></td><td>Disconnect broker</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>⚙️ System</h2>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/health</code></td><td>Public</td><td>Health check</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/admin/stats</code></td><td>Admin</td><td>System statistics</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/admin/backup</code></td><td>Admin</td><td>Trigger backup</td></tr>
+<tr><td><span class="tag get">GET</span></td><td><code>/api/admin/backups</code></td><td>Admin</td><td>List backups</td></tr>
+<tr><td><span class="tag post">POST</span></td><td><code>/api/admin/restore</code></td><td>Admin</td><td>Restore from backup</td></tr>
+</tbody>
+</table>
+</div>
+
+</main>
+
+<footer><div class="wrap"><div class="flinks"><a href="index.html">Home</a><a href="features.html">Features</a><a href="user-guide.html">User Guide</a><a href="deployment.html">Deployment</a><a href="https://github.com/koushikch7/FinPredict-AI">GitHub</a></div><div>📈 FinPredict AI — AI-Powered Indian Stock Market Intelligence</div><div class="dim" style="margin-top:6px">© 2026 Koushik Chalasani · MIT License</div></div></footer>
+</body>
+</html>

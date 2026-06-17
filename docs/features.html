@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Features — FinPredict AI</title>
+<meta name="description" content="Comprehensive feature documentation for FinPredict AI - AI predictions, paper trading, technical analysis, sentiment analysis, and more." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📈%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{--bg:#0a0e1a;--bg2:#0f1525;--card:#141b2e;--card2:#1a2236;--border:#243049;--border2:#2e3b58;--txt:#e6ecf7;--muted:#9aa8c4;--dim:#6b7896;--brand:#10b981;--brand2:#06b6d4;--accent:#22d3ee;--green:#34d399;--amber:#fbbf24;--red:#f87171;--purple:#a78bfa;--radius:14px;--maxw:900px;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth}body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.7;-webkit-font-smoothing:antialiased}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}code{font-family:var(--mono);font-size:.88em;background:var(--bg2);padding:2px 7px;border-radius:6px;border:1px solid var(--border)}.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}.muted{color:var(--muted)}.dim{color:var(--dim)}
+  header.nav{position:sticky;top:0;z-index:50;background:rgba(10,14,26,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}.nav-inner{display:flex;align-items:center;gap:18px;height:60px}.logo{font-weight:800;font-size:1.18rem;letter-spacing:-.02em;display:flex;align-items:center;gap:9px}.logo .v{font-size:.62rem;font-weight:700;color:var(--brand2);border:1px solid var(--border2);border-radius:20px;padding:2px 8px;margin-left:4px}.nav-links{display:flex;gap:22px;margin-left:auto;align-items:center}.nav-links a{color:var(--muted);font-size:.92rem;font-weight:500}.nav-links a:hover{color:var(--txt);text-decoration:none}.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:9px 16px;font-weight:600;font-size:.9rem;cursor:pointer;border:1px solid transparent;transition:.15s}.btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}.btn-primary:hover{filter:brightness(1.1);text-decoration:none}.btn-ghost{background:var(--card);border-color:var(--border2);color:var(--txt)}.btn-ghost:hover{background:var(--card2);text-decoration:none}
+  main{padding:60px 0 80px}h1{font-size:2.4rem;font-weight:800;margin-bottom:12px;letter-spacing:-.02em}h2{font-size:1.6rem;font-weight:700;margin:48px 0 18px;padding-top:24px;border-top:1px solid var(--border)}h3{font-size:1.2rem;font-weight:600;margin:32px 0 14px;color:var(--accent)}p{margin-bottom:16px}ul,ol{margin:16px 0 24px 24px}li{margin-bottom:10px}
+  .feature-block{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin:24px 0}.feature-block h3{margin-top:0;color:var(--txt)}.feature-block .ic{font-size:2rem;margin-bottom:12px}
+  .tag{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 9px;border-radius:20px;background:rgba(52,211,153,.14);color:var(--green);margin-right:6px}
+  footer{padding:40px 0;text-align:center;color:var(--dim);font-size:.88rem;border-top:1px solid var(--border)}.flinks{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;margin-bottom:18px}.flinks a{color:var(--muted)}.flinks a:hover{color:var(--txt)}
+</style>
+</head>
+<body>
+<header class="nav"><div class="wrap nav-inner"><a href="index.html" class="logo">📈 FinPredict AI<span class="v">v1.0.0</span></a><nav class="nav-links"><a href="index.html">Home</a><a href="api-reference.html">API</a><a href="user-guide.html">Guide</a><a class="btn btn-primary" href="https://github.com/koushikch7/FinPredict-AI" target="_blank">★ GitHub</a></nav></div></header>
+
+<main class="wrap">
+<h1>📚 Features Guide</h1>
+<p class="muted">Comprehensive documentation of all FinPredict AI capabilities.</p>
+
+<h2>🤖 AI-Powered Predictions</h2>
+<div class="feature-block">
+<div class="ic">🧠</div>
+<h3>Multi-Provider Ensemble</h3>
+<p>FinPredict AI uses multiple AI providers for robust predictions:</p>
+<ul>
+<li><strong>Google Gemini</strong> — Primary provider with excellent reasoning</li>
+<li><strong>OpenAI GPT-4</strong> — Alternative provider for comparison</li>
+<li><strong>Arbiter Gateway</strong> — Unified endpoint with automatic failover to 11+ providers</li>
+</ul>
+<p>The system generates predictions using 6 investment strategies:</p>
+<ul>
+<li><span class="tag">Momentum</span> Trend-following with RSI, MACD momentum</li>
+<li><span class="tag">Value</span> Undervalued stocks via P/E, P/B analysis</li>
+<li><span class="tag">Growth</span> Revenue/earnings growth focus</li>
+<li><span class="tag">GARP</span> Growth at Reasonable Price (PEG ratio)</li>
+<li><span class="tag">Swing</span> Short-term reversal opportunities</li>
+<li><span class="tag">Contrarian</span> Against-the-crowd plays</li>
+</ul>
+</div>
+
+<div class="feature-block">
+<div class="ic">📊</div>
+<h3>Conviction Scoring</h3>
+<p>Each prediction includes a conviction score (0-100%) based on:</p>
+<ul>
+<li>Technical indicator alignment (RSI, MACD, Bollinger bands)</li>
+<li>Sentiment score from FinBERT analysis</li>
+<li>Historical accuracy of similar signals</li>
+<li>Market conditions (volatility, trend strength)</li>
+</ul>
+<p><strong>Score interpretation:</strong></p>
+<ul>
+<li><strong>80-100%</strong> — Strong conviction, multiple confirming factors</li>
+<li><strong>60-79%</strong> — Moderate conviction, some conflicting signals</li>
+<li><strong>40-59%</strong> — Weak conviction, consider waiting</li>
+<li><strong>Below 40%</strong> — No clear signal, hold or avoid</li>
+</ul>
+</div>
+
+<h2>🧠 FinBERT Sentiment Analysis</h2>
+<div class="feature-block">
+<div class="ic">📰</div>
+<h3>NLP-Powered News Analysis</h3>
+<p>FinPredict AI uses HuggingFace's FinBERT model — a BERT variant fine-tuned on financial text:</p>
+<ul>
+<li><strong>Real-time processing</strong> of news headlines</li>
+<li><strong>Three-way classification:</strong> Bullish, Bearish, Neutral</li>
+<li><strong>Confidence scores</strong> for each classification</li>
+<li><strong>Aggregated sentiment</strong> over configurable time windows</li>
+</ul>
+<p>Sentiment is integrated into AI predictions as a key input factor.</p>
+</div>
+
+<h2>📊 Technical Analysis</h2>
+<div class="feature-block">
+<div class="ic">📈</div>
+<h3>30+ Technical Indicators</h3>
+<p>Comprehensive technical analysis suite:</p>
+<ul>
+<li><strong>Momentum:</strong> RSI, Stochastic, Williams %R, CCI, ROC</li>
+<li><strong>Trend:</strong> MACD, ADX, Parabolic SAR, Aroon, Ichimoku Cloud</li>
+<li><strong>Volatility:</strong> Bollinger Bands, ATR, Keltner Channels</li>
+<li><strong>Volume:</strong> OBV, VWAP, Accumulation/Distribution, CMF</li>
+<li><strong>Support/Resistance:</strong> Pivot points, Fibonacci levels</li>
+</ul>
+</div>
+
+<h2>📈 Paper Trading</h2>
+<div class="feature-block">
+<div class="ic">💰</div>
+<h3>Virtual Portfolio Simulation</h3>
+<p>Practice trading with zero risk:</p>
+<ul>
+<li><strong>Starting capital:</strong> ₹1,00,000 virtual balance</li>
+<li><strong>Realistic charges:</strong> 0.03% brokerage + ₹20 per order (mirrors Zerodha)</li>
+<li><strong>STT, exchange fees, GST</strong> calculated on each trade</li>
+<li><strong>P&L tracking:</strong> Realized, unrealized, and total returns</li>
+<li><strong>Trade history:</strong> Complete log with entry/exit prices</li>
+<li><strong>Performance metrics:</strong> Win rate, average gain/loss, Sharpe ratio</li>
+</ul>
+</div>
+
+<h2>💬 AI Chat Assistant</h2>
+<div class="feature-block">
+<div class="ic">🤖</div>
+<h3>Portfolio-Aware Conversations</h3>
+<p>The AI assistant has full context of:</p>
+<ul>
+<li>Your current paper trading positions</li>
+<li>Watchlist stocks and their latest prices</li>
+<li>Recent predictions and their outcomes</li>
+<li>Market conditions and news sentiment</li>
+</ul>
+<p>Ask questions like:</p>
+<ul>
+<li>"Should I add more TCS to my portfolio?"</li>
+<li>"What's the outlook for banking stocks this week?"</li>
+<li>"Analyze my paper trading performance"</li>
+<li>"Find me oversold large-cap stocks"</li>
+</ul>
+</div>
+
+<h2>🔗 Broker Integration</h2>
+<div class="feature-block">
+<div class="ic">🏦</div>
+<h3>Zerodha Kite Connect</h3>
+<p>Connect your Zerodha account via OAuth 2.0:</p>
+<ul>
+<li><strong>Holdings sync:</strong> Import your real portfolio</li>
+<li><strong>Position tracking:</strong> View real vs paper performance</li>
+<li><strong>Read-only access:</strong> FinPredict never executes real trades</li>
+<li><strong>Secure OAuth:</strong> Token refresh handled automatically</li>
+</ul>
+</div>
+
+<h2>🔍 Stock Discovery Scanner</h2>
+<div class="feature-block">
+<div class="ic">🎯</div>
+<h3>Find Opportunities</h3>
+<p>Pre-built scanner filters:</p>
+<ul>
+<li><strong>Momentum Breakouts:</strong> Stocks breaking above resistance with volume</li>
+<li><strong>Oversold Bounces:</strong> RSI < 30 with reversal signals</li>
+<li><strong>Volume Spikes:</strong> Unusual volume activity</li>
+<li><strong>Earnings Surprises:</strong> Post-results momentum plays</li>
+<li><strong>52-Week Highs/Lows:</strong> New range extremes</li>
+</ul>
+</div>
+
+<h2>🆕 IPO Analysis</h2>
+<div class="feature-block">
+<div class="ic">🎉</div>
+<h3>IPO Tracking & Analysis</h3>
+<ul>
+<li><strong>Upcoming IPOs:</strong> Calendar with dates, price bands</li>
+<li><strong>Current IPOs:</strong> Subscription status, GMP (grey market premium)</li>
+<li><strong>Listed IPOs:</strong> Listing gains/losses, current performance</li>
+<li><strong>AI Analysis:</strong> Subscription recommendations based on fundamentals</li>
+</ul>
+</div>
+
+<h2>🔐 Security Features</h2>
+<div class="feature-block">
+<div class="ic">🛡️</div>
+<h3>Enterprise-Grade Security</h3>
+<ul>
+<li><strong>bcrypt password hashing</strong> with 12 salt rounds</li>
+<li><strong>JWT authentication</strong> with HTTP-only cookies</li>
+<li><strong>Rate limiting</strong> on sensitive endpoints</li>
+<li><strong>Helmet security headers</strong> (CSP, HSTS, etc.)</li>
+<li><strong>Zod schema validation</strong> on all inputs</li>
+<li><strong>CORS allowlist</strong> (no reflected origin)</li>
+<li><strong>Secret masking</strong> in admin UI</li>
+</ul>
+</div>
+
+</main>
+
+<footer><div class="wrap"><div class="flinks"><a href="index.html">Home</a><a href="api-reference.html">API Reference</a><a href="user-guide.html">User Guide</a><a href="deployment.html">Deployment</a><a href="https://github.com/koushikch7/FinPredict-AI">GitHub</a></div><div>📈 FinPredict AI — AI-Powered Indian Stock Market Intelligence</div><div class="dim" style="margin-top:6px">© 2026 Koushik Chalasani · MIT License</div></div></footer>
+</body>
+</html>

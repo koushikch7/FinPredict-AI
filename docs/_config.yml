@@ -1,42 +1,13 @@
+# Minimal Jekyll config for static HTML
 title: FinPredict AI
-description: AI-Powered Indian Stock Market Intelligence Platform — Self-hosted investment terminal with FinBERT sentiment analysis, 30+ technical indicators, autonomous paper trading, and multi-broker integration.
+description: AI-Powered Indian Stock Market Intelligence Platform
 baseurl: "/FinPredict-AI"
 url: "https://koushikch7.github.io"
-remote_theme: pages-themes/cayman@v0.2.0
-plugins:
-  - jekyll-remote-theme
-  - jekyll-seo-tag
 
-# SEO
-logo: /assets/logo.png
-twitter:
-  username: koushikch7
-social:
-  name: Koushik Chalasani
-  links:
-    - https://github.com/koushikch7
-    - https://chkoushik.com
+# No theme - serving static HTML
+plugins: []
 
-# Navigation
-header_pages:
-  - index.md
-  - features.md
-  - api-reference.md
-  - user-guide.md
-  - deployment.md
-  - postman.md
-
-# Metadata
-author: Koushik Chalasani
-github_username: koushikch7
-repository: koushikch7/FinPredict-AI
-
-# Google Analytics (optional)
-# google_analytics: G-XXXXXXXXXX
-
-# Defaults
-defaults:
-  - scope:
-      path: ""
-    values:
-      layout: default
+# Include HTML files
+include:
+  - "*.html"
+  - "*.json"
