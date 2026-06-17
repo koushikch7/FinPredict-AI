@@ -1,7 +1,24 @@
 # FinPredict-AI
 
-> **AI-powered stock investment manager for Indian markets (NSE / BSE).**
-> Self-hosted • single container • multi-broker • multi-AI-provider
+<div align="center">
+
+![FinPredict AI](https://img.shields.io/badge/FinPredict-AI-blue?style=for-the-badge&logo=chartmogul&logoColor=white)
+
+**AI-powered stock investment manager for Indian markets (NSE / BSE)**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![Node.js](https://img.shields.io/badge/Node.js-20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+
+*Self-hosted • Single container • Multi-broker • Multi-AI-provider*
+
+[📖 Documentation](https://koushikch7.github.io/FinPredict-AI/) • [🚀 Quick Start](#getting-started) • [📦 API Reference](https://koushikch7.github.io/FinPredict-AI/api-reference) • [📥 Postman Collection](https://koushikch7.github.io/FinPredict-AI/postman)
+
+</div>
+
+---
 
 This README is the canonical product/feature reference. Companion docs:
 - [REQUIREMENTS.md](REQUIREMENTS.md) — functional & non-functional requirements
@@ -366,3 +383,57 @@ GET  /admin/me/ai          POST /admin/me/ai            POST /admin/me/ai/test
 - Mobile-first responsive polish
 - Real-money order routing behind a feature flag (out of scope for v1)
 - Code-splitting to drop main bundle below 250 kB gzip
+
+---
+
+## 📚 Documentation
+
+| Resource | Description |
+|----------|-------------|
+| [📖 Full Documentation](https://koushikch7.github.io/FinPredict-AI/) | Comprehensive guides and tutorials |
+| [🎯 Features Guide](https://koushikch7.github.io/FinPredict-AI/features) | Detailed feature documentation |
+| [📡 API Reference](https://koushikch7.github.io/FinPredict-AI/api-reference) | Complete REST API documentation |
+| [👤 User Guide](https://koushikch7.github.io/FinPredict-AI/user-guide) | Step-by-step usage instructions |
+| [🚀 Deployment Guide](https://koushikch7.github.io/FinPredict-AI/deployment) | Production deployment options |
+| [📥 Postman Collection](https://koushikch7.github.io/FinPredict-AI/postman) | API testing collection |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+```
+Copyright (c) 2026 Koushik Chalasani
+```
+
+---
+
+## 👤 Author
+
+**Koushik Chalasani**
+
+- Website: [chkoushik.com](https://chkoushik.com)
+- GitHub: [@koushikch7](https://github.com/koushikch7)
+
+---
+
+<div align="center">
+
+**⭐ Star this repo if you find it useful!**
+
+Made with ❤️ for the Indian investor community
+
+</div>

@@ -1,0 +1,27 @@
+title: FinPredict AI
+description: AI-Powered Indian Stock Market Intelligence Platform
+baseurl: "/FinPredict-AI"
+url: "https://koushikch7.github.io"
+remote_theme: pages-themes/minimal@v0.2.0
+plugins:
+  - jekyll-remote-theme
+
+# Navigation
+nav:
+  - title: Home
+    url: /
+  - title: Features
+    url: /features
+  - title: API Reference
+    url: /api-reference
+  - title: User Guide
+    url: /user-guide
+  - title: Deployment
+    url: /deployment
+  - title: Postman Collection
+    url: /postman
+
+# Metadata
+author: Koushik Chalasani
+github_username: koushikch7
+repository: koushikch7/FinPredict-AI

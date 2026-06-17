@@ -1,0 +1,920 @@
+{
+  "info": {
+    "_postman_id": "finpredict-ai-collection",
+    "name": "FinPredict AI",
+    "description": "Complete API collection for FinPredict AI - AI-Powered Indian Stock Market Intelligence Platform\n\nGitHub: https://github.com/koushikch7/FinPredict-AI\n\n## Setup\n1. Set the `baseUrl` variable to your instance URL\n2. Run \"Login\" request first to get auth cookie\n3. All subsequent requests will use the cookie automatically\n\n## Variables\n- `baseUrl`: Your FinPredict AI instance URL (e.g., http://localhost:3000)\n- `symbol`: Stock symbol for testing (e.g., RELIANCE)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "symbol",
+      "value": "RELIANCE",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health & Info",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            }
+          }
+        },
+        {
+          "name": "Get README",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/docs/README",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "docs", "README"]
+            }
+          }
+        },
+        {
+          "name": "Get CHANGELOG",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/docs/CHANGELOG",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "docs", "CHANGELOG"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"oldpassword\",\n  \"newPassword\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "change-password"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stocks & Market Data",
+      "item": [
+        {
+          "name": "List All Stocks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stocks",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stocks"]
+            }
+          }
+        },
+        {
+          "name": "Get Market Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stocks/market-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stocks", "market-status"]
+            }
+          }
+        },
+        {
+          "name": "Get Stock Quote",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stocks/{{symbol}}/quote",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stocks", "{{symbol}}", "quote"]
+            }
+          }
+        },
+        {
+          "name": "Get Price History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stocks/{{symbol}}/history?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stocks", "{{symbol}}", "history"],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Technical Indicators",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/stocks/{{symbol}}/technicals",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stocks", "{{symbol}}", "technicals"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Predictions",
+      "item": [
+        {
+          "name": "List Predictions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/predictions?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "predictions"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Strategies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/predictions/strategies",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "predictions", "strategies"]
+            }
+          }
+        },
+        {
+          "name": "Generate Prediction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"{{symbol}}\",\n  \"strategy\": \"Buffett\",\n  \"horizon\": \"medium\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/predictions/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "predictions", "generate"]
+            }
+          }
+        },
+        {
+          "name": "Get Top Picks",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"strategy\": \"Momentum\",\n  \"horizon\": \"swing\",\n  \"count\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/predictions/top-picks",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "predictions", "top-picks"]
+            }
+          }
+        },
+        {
+          "name": "Get Accuracy Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/predictions/accuracy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "predictions", "accuracy"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Paper Trading",
+      "item": [
+        {
+          "name": "Get Account State",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/playground",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "playground"]
+            }
+          }
+        },
+        {
+          "name": "Get Trade History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/playground/trades?limit=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "playground", "trades"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Equity Curve",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/playground/equity-curve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "playground", "equity-curve"]
+            }
+          }
+        },
+        {
+          "name": "Get Strategy Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/playground/strategy-stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "playground", "strategy-stats"]
+            }
+          }
+        },
+        {
+          "name": "Get Quote for Trade",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/playground/quote/{{symbol}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "playground", "quote", "{{symbol}}"]
+            }
+          }
+        },
+        {
+          "name": "Execute Trade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"{{symbol}}\",\n  \"action\": \"BUY\",\n  \"qty\": 1,\n  \"reason\": \"Testing API\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/playground/trade",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "playground", "trade"]
+            }
+          }
+        },
+        {
+          "name": "Update Settings",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"auto_trade\": false,\n  \"strategy\": \"Balanced\",\n  \"risk_level\": \"moderate\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/playground/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "playground", "settings"]
+            }
+          }
+        },
+        {
+          "name": "Reset Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"initial_capital\": 100000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/playground/reset",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "playground", "reset"]
+            }
+          }
+        },
+        {
+          "name": "Run AI Cycle",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/playground/run-ai",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "playground", "run-ai"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Chat",
+      "item": [
+        {
+          "name": "List Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "sessions"]
+            }
+          }
+        },
+        {
+          "name": "Get Session Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/sessions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "sessions", "1"]
+            }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"How is my portfolio performing today?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/send",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "chat", "send"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Portfolio",
+      "item": [
+        {
+          "name": "List Holdings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/portfolio",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "portfolio"]
+            }
+          }
+        },
+        {
+          "name": "Add Position",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"{{symbol}}\",\n  \"qty\": 10,\n  \"avg_price\": 2400\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/portfolio",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "portfolio"]
+            }
+          }
+        },
+        {
+          "name": "Delete Position",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/portfolio/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "portfolio", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Watchlist",
+      "item": [
+        {
+          "name": "List Watchlist",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/watchlist",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "watchlist"]
+            }
+          }
+        },
+        {
+          "name": "Add to Watchlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"{{symbol}}\",\n  \"notes\": \"Watching for breakout\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/watchlist",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "watchlist"]
+            }
+          }
+        },
+        {
+          "name": "Remove from Watchlist",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/watchlist/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "watchlist", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "News",
+      "item": [
+        {
+          "name": "Get Market News",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/news?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "news"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get News for Symbol",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/news?symbol={{symbol}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "news"],
+              "query": [
+                {
+                  "key": "symbol",
+                  "value": "{{symbol}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "IPO",
+      "item": [
+        {
+          "name": "List IPOs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ipo",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ipo"]
+            }
+          }
+        },
+        {
+          "name": "Refresh IPO List",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ipo/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "ipo", "refresh"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Discovery",
+      "item": [
+        {
+          "name": "Get Opportunities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/discovery",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "discovery"]
+            }
+          }
+        },
+        {
+          "name": "Trigger Scan",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/discovery/scan",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "discovery", "scan"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Brokers",
+      "item": [
+        {
+          "name": "List Brokers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/brokers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "brokers"]
+            }
+          }
+        },
+        {
+          "name": "Save Credentials",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"broker\": \"zerodha\",\n  \"api_key\": \"your-api-key\",\n  \"api_secret\": \"your-api-secret\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/brokers/credentials",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "brokers", "credentials"]
+            }
+          }
+        },
+        {
+          "name": "Get Login URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/brokers/zerodha/login-url",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "brokers", "zerodha", "login-url"]
+            }
+          }
+        },
+        {
+          "name": "Sync Holdings",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/brokers/zerodha/sync",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "brokers", "zerodha", "sync"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/config",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "config"]
+            }
+          }
+        },
+        {
+          "name": "Test AI Connection",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/ai/test",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "ai", "test"]
+            }
+          }
+        },
+        {
+          "name": "List AI Models",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/ai/models",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "ai", "models"]
+            }
+          }
+        },
+        {
+          "name": "AI Diagnostics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/ai/diag",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "ai", "diag"]
+            }
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users"]
+            }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"newuser\",\n  \"password\": \"password123\",\n  \"role\": \"Viewer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Backups",
+      "item": [
+        {
+          "name": "Get Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/backups/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "backups", "status"]
+            }
+          }
+        },
+        {
+          "name": "List Backups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/backups/list",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "backups", "list"]
+            }
+          }
+        },
+        {
+          "name": "Create Backup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"manual\",\n  \"description\": \"Manual backup via API\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/backups/create",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "backups", "create"]
+            }
+          }
+        },
+        {
+          "name": "Storage Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/backups/storage",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "backups", "storage"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
